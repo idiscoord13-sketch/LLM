@@ -1,0 +1,23 @@
+# Phase 2 — SFT with (Q)LoRA. Hardware comes from the profile; this file is the recipe.
+profile: local_4060
+seed: 42
+output_dir: out/sft
+data:
+  # output of the cleaning pipeline + distilled/rejection-sampled data (configs/distill.yaml)
+  train_files: [data/processed/sft_fa.jsonl]
+chat_template_kwargs: {}       # e.g. {enable_thinking: false} for Qwen3 hybrid models
+lora:
+  r: 16                        # roadmap §6.2: start with 16-32, alpha = 2r
+  alpha: 32
+  dropout: 0.05
+  use_rslora: false
+train:
+  epochs: 2                    # 1-3; watch the golden set, not the train loss
+  learning_rate: 2.0e-4        # QLoRA sweet spot
+  lr_scheduler: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  packing: false               # true = faster; verify with your TRL version first
+  logging_steps: 10
+  save_strategy: epoch
+  report_to: none              # wandb once you `pip install wandb`

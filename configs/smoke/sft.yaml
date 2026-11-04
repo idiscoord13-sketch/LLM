@@ -1,0 +1,11 @@
+profile: cpu_smoke
+seed: 42
+output_dir: out/smoke/sft
+data:
+  train_files: [data/samples/sft_fa.jsonl]
+lora: {r: 8, alpha: 16, dropout: 0.0}
+train:
+  epochs: 1
+  learning_rate: 1.0e-3
+  lr_scheduler: constant
+  logging_steps: 1

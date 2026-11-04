@@ -1,0 +1,6 @@
+commercial_safe: true
+inputs: [{path: data/samples/raw_dirty.jsonl, license: cc-by-4.0}]
+output: out/smoke/clean/clean.jsonl
+steps: {normalize: true, langid: true, dedup_exact: true, dedup_minhash: true, quality: true, pii: true, decontam: true}
+quality: {min_chars: 20, min_words: 3}
+decontam: {ngram: 8, eval_files: [data/eval/golden_fa.jsonl]}

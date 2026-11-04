@@ -1,0 +1,14 @@
+# Phase 2 — cleaning pipeline (roadmap §4.2). Run on every SFT/CPT source before training.
+commercial_safe: true          # drop rows whose license forbids commercial use (see data_sources.yaml)
+inputs:
+  - {path: data/raw/farsinstruct.jsonl, license: apache-2.0}
+  - {path: data/raw/persian_alpaca.jsonl, license: unknown}
+output: data/processed/sft_fa.jsonl
+steps: {normalize: true, langid: true, dedup_exact: true, dedup_minhash: true, quality: true, pii: true, decontam: true}
+normalize: {digits: keep_ascii, remove_diacritics: true, fix_affixes: true}
+langid: {allowed: [fa, en, code, mixed]}
+dedup: {threshold: 0.8, num_perm: 128}
+quality: {min_chars: 20, min_words: 3}
+decontam:
+  ngram: 8
+  eval_files: [data/eval/golden_fa.jsonl]

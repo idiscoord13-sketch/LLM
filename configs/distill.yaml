@@ -1,0 +1,28 @@
+# Offline distillation: teacher candidates -> verifiers -> SFT data + free preference pairs.
+seed: 42
+data:
+  prompt_files: [data/processed/distill_prompts.jsonl, data/processed/code_tasks.jsonl]
+teacher:                      # an open-weight model with a permissive license, served by vLLM on a rented GPU
+  type: openai
+  base_url: ${TEACHER_BASE_URL}
+  api_key: ${TEACHER_API_KEY}
+  model: Qwen/Qwen3-235B-A22B-Instruct-2507    # or Qwen/Qwen3-32B; check the newest release
+judge:                        # a different family from the student reduces self-preference bias
+  type: openai
+  base_url: ${JUDGE_BASE_URL}
+  api_key: ${JUDGE_API_KEY}
+  model: judge-model
+distill:
+  k: 4                        # candidates per prompt
+  thinking_mode: no_think     # no_think | fa_think | en_think_fa_answer  (idea #6 ablation)
+  params: {temperature: 0.8, max_tokens: 2048}
+  workers: 8
+  mode: weighted              # hard (classic rejection sampling) | weighted (idea #7)
+  threshold: 0.6
+  top_m: 2
+  keep_think: false
+  self_consistency: true      # idea #5 blended into judge scores
+  pair_margin: 0.5
+  candidates_out: data/processed/teacher_candidates.jsonl
+  sft_out: data/processed/sft_distilled.jsonl
+  pairs_out: data/processed/pref_distilled.jsonl
