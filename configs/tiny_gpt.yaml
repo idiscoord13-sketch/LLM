@@ -1,0 +1,47 @@
+# Phase 1 — GPT from scratch (~31M params) for the RTX 4060.
+# C ≈ 6·N·D = 6 × 31M × 600M tokens ≈ 1.1e17 FLOPs  -> a few hours on a 4060 (roadmap §1.2, §5.4).
+# Get data first:  python scripts/download_data.py --config configs/data_sources.yaml --only naab fineweb_edu
+seed: 42
+output_dir: out/tinygpt
+tokenizer:
+  vocab_size: 16384
+  min_frequency: 2
+data:
+  holdout: 0.01
+  max_docs_per_source: null
+  sources:
+    - {name: fa,   path: data/raw/naab_sample.jsonl,        weight: 0.55}
+    - {name: en,   path: data/raw/fineweb_edu_sample.jsonl, weight: 0.35}
+    - {name: code, path: data/raw/code_sample.jsonl,        weight: 0.10}
+model:
+  n_layer: 8
+  n_head: 8
+  n_kv_head: 2          # GQA
+  d_model: 512
+  max_seq_len: 512
+  rope_theta: 10000.0
+  qk_norm: true
+  dropout: 0.0
+train:
+  max_steps: 9200       # 9200 steps × 64 seq × 2 accum × 512 tokens ≈ 600M tokens (Chinchilla 20:1)
+  batch_size: 64
+  grad_accum: 2
+  learning_rate: 1.0e-3
+  min_lr: 1.0e-4
+  warmup_steps: 300
+  schedule: wsd         # wsd | cosine — try both: that is an experiment, not a guess
+  decay_fraction: 0.2
+  weight_decay: 0.1
+  grad_clip: 1.0
+  eval_every: 250
+  compile: true
+mixing:
+  adaptive: false       # idea #4: set true to let the bandit choose the mix
+  fertility_aware: true
+  eta: 2.0
+  min_prob: 0.05
+sft:
+  data: data/processed/sft_fa.jsonl
+  steps: 1500
+  batch_size: 16
+  learning_rate: 1.0e-4
