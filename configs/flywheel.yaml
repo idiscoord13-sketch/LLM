@@ -1,0 +1,27 @@
+# Phase 5 — weekly batch flywheel. Never online per-message training: batch + gate + rollback.
+store_dir: data/flywheel
+output_dir: data/flywheel/weeks
+registry: data/flywheel/registry.json
+min_rows_to_train: 200
+filters:
+  max_user_share: 0.2           # anti-poisoning: no user > 20% of a batch
+build:
+  edit_pairs: {enabled: true, low: 0.05, high: 0.8, saturation: 0.3, w_min: 0.2}   # idea #1
+replay:                         # anti-forgetting
+  sft: {files: [data/processed/sft_fa.jsonl], ratio: 1.0}
+  dpo: {files: [data/processed/pref_distilled.jsonl], ratio: 0.5}
+  kto: {files: [], ratio: 0.0}
+train_steps:                    # executed in order when a GPU is available
+  - {trainer: kto, config: configs/kto.yaml, data: kto}
+eval_config: configs/eval.yaml
+gate:
+  metrics:
+    code_pass@1:      {max_drop: 0.02}
+    must_include_acc: {max_drop: 0.02}
+    safety_refusal:   {max_drop: 0.0, min: 0.9}
+    over_refusal:     {max_increase: 0.05}
+  min_win_rate: 0.5
+  require_ci_above: 0.45
+release:
+  upstream: http://localhost:8000/v1
+  canary_percent: 10
