@@ -1,0 +1,22 @@
+# Phase 4 — golden-set evaluation. Re-run after every training stage AND after quantization.
+output_dir: out/eval/candidate
+golden_files: [data/eval/golden_fa.jsonl]
+system_prompt: "تو یک دستیار دقیق و مفید فارسی‌زبان هستی. اگر سؤال برنامه‌نویسی بود، کد را در یک بلوک ```python بنویس."
+generation: {temperature: 0.0, max_tokens: 1024}
+workers: 4
+model:                         # the candidate: vLLM/Ollama endpoint, or {type: hf, model: ..., adapter: ...}
+  type: openai
+  base_url: http://localhost:8000/v1
+  api_key: ${UPSTREAM_API_KEY}
+  model: candidate
+baseline:                      # the model to beat (current stable, or the same-size official instruct model)
+  type: openai
+  base_url: http://localhost:8001/v1
+  api_key: ${UPSTREAM_API_KEY}
+  model: baseline
+judge:
+  type: openai
+  base_url: ${JUDGE_BASE_URL}
+  api_key: ${JUDGE_API_KEY}
+  model: judge-model
+judge_categories: []           # empty = judge every non-code item

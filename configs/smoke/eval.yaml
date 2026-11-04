@@ -1,0 +1,5 @@
+output_dir: out/smoke/eval
+golden_files: [data/eval/golden_fa.jsonl]
+generation: {temperature: 0.0, max_tokens: 16}
+workers: 1
+model: {type: hf, model: "tiny://qwen3", max_new_tokens: 16}

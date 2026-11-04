@@ -1,0 +1,14 @@
+# Phase 4 — public-facing gateway. Model servers (vLLM/Ollama) listen on localhost only.
+auth:
+  keys_env: GATEWAY_API_KEYS     # comma-separated; the gateway refuses to start without keys
+rate_limit:
+  requests_per_minute: 30
+  burst: 10
+registry: data/flywheel/registry.json
+static_upstream:                 # used until a version is registered
+  upstream: http://localhost:11434/v1   # Ollama's OpenAI-compatible endpoint
+  model: myllm
+flywheel:
+  store_dir: data/flywheel
+tts:
+  max_n: 8                       # clients may ask {"tts": {"n": 4}} for best-of-n

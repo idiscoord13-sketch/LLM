@@ -1,0 +1,21 @@
+# Ollama model definition for a GGUF export of your model (single-user, runs fine on an 8 GB RTX 4060).
+#   1) merge LoRA:   python -m myllm.train.merge lora --base <base> --adapter out/sft --out out/sft-merged
+#   2) GGUF:         python llama.cpp/convert_hf_to_gguf.py out/sft-merged --outfile out/myllm-f16.gguf
+#                    llama.cpp/build/bin/llama-quantize out/myllm-f16.gguf out/myllm-Q4_K_M.gguf Q4_K_M
+#   3) ollama create myllm -f scripts/Modelfile.example && ollama run myllm
+#   4) re-run the golden eval against Ollama (http://localhost:11434/v1) — quantization can cost quality.
+FROM ../out/myllm-Q4_K_M.gguf
+
+# ChatML, the template family of Qwen models
+TEMPLATE """{{- if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{- range .Messages }}<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{ end }}<|im_start|>assistant
+"""
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER num_ctx 8192
+SYSTEM """تو یک دستیار دقیق و مفید فارسی‌زبان هستی. اگر سؤال برنامه‌نویسی بود، کد درست را در یک بلوک ```python بنویس. اگر چیزی را نمی‌دانی، صادقانه بگو."""
