@@ -1,0 +1,22 @@
+# On-policy distillation (GKD). Teacher and student MUST share the tokenizer (same family).
+# Teacher must fit next to the student -> rent a GPU (cloud_24gb: 8B student + 14B teacher in 4-bit;
+# cloud_80gb: 4B/8B student + 32B teacher). On the 4060 use offline distillation instead.
+profile: cloud_80gb
+seed: 42
+output_dir: out/gkd
+model:
+  name: Qwen/Qwen3-4B-Instruct-2507
+  teacher: Qwen/Qwen3-32B
+  adapter: out/sft
+data:
+  train_files: [data/processed/distill_prompts.jsonl]   # rows: {"prompt": [{"role":"user",...}]}
+gkd:
+  beta: 0.5                   # 0 = forward KL (mode covering), 1 = reverse KL (mode seeking)
+  temperature: 0.9
+  max_completion_length: 1024
+lora: {r: 32, alpha: 64, dropout: 0.0}
+train:
+  epochs: 1
+  learning_rate: 1.0e-5
+  lr_scheduler: cosine
+  warmup_ratio: 0.05

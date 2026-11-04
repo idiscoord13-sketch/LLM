@@ -1,0 +1,25 @@
+# RLVR with GRPO on code tasks whose reward is "the unit tests pass".
+# Do it after SFT(+DPO). Best on a rented GPU with vLLM generation (cloud_80gb sets use_vllm).
+profile: cloud_24gb
+seed: 42
+output_dir: out/grpo
+model:
+  adapter: out/dpo
+data:
+  train_files: [data/processed/code_tasks.jsonl]        # rows: {"prompt": [...], "tests": "assert ..."}
+grpo:
+  rewards:                    # name: weight   (see myllm/train/rewards.py)
+    code_tests: 1.0
+    code_format: 0.2
+    persian_prose: 0.1
+    length_penalty: 0.2
+  temperature: 1.0
+  beta: 0.0                   # no KL/ref model -> less VRAM (DAPO-style)
+  loss_type: dapo
+  epsilon_high: 0.28
+lora: {r: 32, alpha: 64, dropout: 0.0}
+train:
+  epochs: 1
+  learning_rate: 1.0e-6
+  lr_scheduler: constant
+  logging_steps: 5

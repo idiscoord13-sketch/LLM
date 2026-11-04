@@ -1,0 +1,19 @@
+# KTO from 👍/👎 (flywheel). Idea #2: confidence-gated.
+profile: local_4060
+seed: 42
+output_dir: out/kto
+model:
+  adapter: out/dpo
+data:
+  train_files: [data/flywheel/weeks/latest/kto.jsonl]
+preference: {beta: 0.1}
+kto:
+  min_confidence: 0.35        # below -> human review queue (out/kto/review_queue.jsonl)
+  confidence_weighting: true  # false = plain-KTO baseline for the ablation
+lora: {r: 16, alpha: 32, dropout: 0.05}
+train:
+  epochs: 1
+  learning_rate: 5.0e-6
+  lr_scheduler: cosine
+  warmup_ratio: 0.1
+  batch_size: 4               # KTO needs >1 example per batch to estimate its KL baseline

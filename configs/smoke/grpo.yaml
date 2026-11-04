@@ -1,0 +1,10 @@
+profile: cpu_smoke
+seed: 42
+output_dir: out/smoke/grpo
+data: {train_files: [data/samples/code_tasks.jsonl]}
+lora: {r: 8, alpha: 16, dropout: 0.0}
+grpo:
+  num_generations: 2
+  max_completion_length: 16
+  rewards: {code_tests: 1.0, code_format: 0.2, persian_prose: 0.1, length_penalty: 0.1}
+train: {epochs: 1, learning_rate: 1.0e-4, lr_scheduler: constant, logging_steps: 1}

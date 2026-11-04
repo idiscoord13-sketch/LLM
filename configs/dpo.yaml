@@ -1,0 +1,22 @@
+# Phase 3 — preference optimization on top of the SFT adapter.
+profile: local_4060
+seed: 42
+output_dir: out/dpo
+model:
+  adapter: out/sft            # continue training the SFT LoRA (or set model.name to a merged SFT model)
+data:
+  # verifier pairs from distill/reject_sample + translated UltraFeedback + flywheel pairs
+  train_files: [data/processed/pref_distilled.jsonl]
+preference:
+  algorithm: dpo              # dpo | ipo | robust | apo_zero | simpo   (compare them with eval, not blogs)
+  beta: 0.1                   # higher = stay closer to the reference
+  label_smoothing: 0.0        # >0 for noisy labels (cDPO)
+  # loss_type: [sigmoid, sft] # MPO-style mix: DPO + SFT term keeps chosen likelihood up
+  # loss_weights: [1.0, 0.2]
+lora: {r: 16, alpha: 32, dropout: 0.05}
+train:
+  epochs: 1
+  learning_rate: 5.0e-6       # ~40x lower than SFT
+  lr_scheduler: cosine
+  warmup_ratio: 0.1
+  logging_steps: 10
