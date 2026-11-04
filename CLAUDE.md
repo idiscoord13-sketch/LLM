@@ -26,6 +26,8 @@
 - gate: `uv run python -m myllm.flywheel.gate --new <results.json> --baseline <results.json>`
 - flywheel: `uv run python scripts/weekly_flywheel.py --config configs/flywheel.yaml --dry-run`
 - ablation: `uv run python -m myllm.research.ablate --config configs/research/<idea>.yaml`
+- عروض‌یار: `uv run python -m myllm.aruz.scan "<مصراع ۱>" "<مصراع ۲>"`، ارزیابی `uv run python scripts/eval_aruz.py --couplets`
+  (داده‌ی گنجور در `data/raw/ganjoor` محلی است و commit نمی‌شود؛ لایسنسش روشن نیست)
 
 ## معماری کد
 - `configs/profiles/*.yaml` = سخت‌افزار (مدل، batch، طول، ۴-بیت)؛ `configs/*.yaml` = recipe. ترتیب: recipe ← profile ← `--set`.
