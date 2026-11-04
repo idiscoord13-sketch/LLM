@@ -1,0 +1,12 @@
+# Idea #4 on the RTX 4060: does fertility-aware adaptive mixing lower Persian bits-per-char
+# at equal compute? 3 variants x 3 seeds x ~4h each — shorten train.max_steps for a first pass.
+name: idea4_mixing
+command: [python, -m, myllm.tinygpt.pretrain, --config, configs/tiny_gpt.yaml, --set, train.max_steps=3000]
+metric: {file: "{output_dir}/log.jsonl", key: eval.fa, reduce: last, name: fa_val_loss}
+lower_is_better: true
+seeds: [0, 1, 2]
+baseline: fixed
+variants:
+  fixed:            [mixing.adaptive=false]
+  bandit_per_token: [mixing.adaptive=true, mixing.fertility_aware=false]
+  bandit_fertility: [mixing.adaptive=true, mixing.fertility_aware=true]

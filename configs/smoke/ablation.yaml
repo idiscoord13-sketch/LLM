@@ -1,0 +1,13 @@
+# Offline rehearsal of the idea-#4 ablation on the CPU-sized GPT (numbers are meaningless; the pipeline is the point).
+name: smoke_idea4_mixing
+registry: out/smoke/registry.jsonl   # keep rehearsal runs out of the real registry
+runs_dir: out/smoke/runs
+report_dir: out/smoke/reports
+command: [python, -m, myllm.tinygpt.pretrain, --config, configs/smoke/tiny_gpt.yaml, --smoke]
+metric: {file: "{output_dir}/log.jsonl", key: eval.fa, reduce: last, name: fa_val_loss}
+lower_is_better: true
+seeds: [0, 1]
+baseline: fixed
+variants:
+  fixed:            [mixing.adaptive=false]
+  bandit_fertility: [mixing.adaptive=true, mixing.fertility_aware=true]
