@@ -1,0 +1,109 @@
+# Open datasets referenced by the roadmap (§4.1). `license` is what the dataset card said when this
+# file was written — ALWAYS re-check the card before use (licenses change; derived data inherits
+# restrictions). commercial_safe pipelines drop non-commercial rows (myllm/data/licenses.py).
+# `hf` ids marked verify: true could not be checked from the build machine (HF blocked) — confirm on the Hub.
+sources:
+  # ---------- raw text (tiny-GPT pretraining / continued pre-training)
+  naab:
+    hf: SLPL/naab
+    split: train
+    text_field: text
+    license: verify          # check the card (the paper describes it as openly released)
+    use: [cpt, tinygpt]
+    out: data/raw/naab_sample.jsonl
+    max_rows: 2000000
+    verify: true
+  culturax_fa:
+    hf: uonlp/CulturaX
+    config: fa
+    split: train
+    text_field: text
+    license: verify          # inherits mC4 (ODC-BY) / OSCAR terms; gated on the Hub
+    use: [cpt]
+    out: data/raw/culturax_fa_sample.jsonl
+    max_rows: 2000000
+    verify: true
+  fineweb_edu:
+    hf: HuggingFaceFW/fineweb-edu
+    config: sample-10BT
+    split: train
+    text_field: text
+    license: odc-by-1.0
+    use: [cpt, tinygpt]
+    out: data/raw/fineweb_edu_sample.jsonl
+    max_rows: 1000000
+  code:
+    hf: bigcode/the-stack-smol
+    data_dir: data/python
+    split: train
+    text_field: content
+    license: verify          # per-file permissive licenses; gated, accept terms on the Hub
+    use: [cpt, tinygpt]
+    out: data/raw/code_sample.jsonl
+    max_rows: 200000
+    verify: true
+  # ---------- instruction / SFT (Persian)
+  farsinstruct:
+    hf: PNLPhub/FarsInstruct
+    split: train
+    format: auto
+    license: verify
+    use: [sft]
+    out: data/raw/farsinstruct.jsonl
+    max_rows: 200000
+    verify: true
+  mauxi_sft_persian:
+    hf: xmanii/Mauxi-SFT-Persian
+    split: train
+    format: auto
+    license: verify          # translated OpenHermes (GPT-4 generated upstream) — check terms
+    use: [sft]
+    out: data/raw/mauxi_sft_persian.jsonl
+    max_rows: 100000
+    verify: true
+  persian_alpaca:
+    hf: PersianAICommunity/merged_persian_alpaca   # verify exact repo id
+    split: train
+    format: alpaca
+    license: cc-by-nc-4.0    # derived from Stanford Alpaca -> NON-commercial
+    use: [sft]
+    out: data/raw/persian_alpaca.jsonl
+    max_rows: 100000
+    verify: true
+  # ---------- English SFT / preference (translate or mix)
+  tulu3_sft:
+    hf: allenai/tulu-3-sft-mixture
+    split: train
+    format: auto
+    license: odc-by-1.0      # subsets carry their own licenses
+    use: [sft]
+    out: data/raw/tulu3_sft.jsonl
+    max_rows: 100000
+  ultrafeedback:
+    hf: HuggingFaceH4/ultrafeedback_binarized
+    split: train_prefs
+    format: preference
+    license: mit
+    use: [pref]
+    out: data/raw/ultrafeedback.jsonl
+    max_rows: 60000
+  # ---------- code tasks with tests (eval / GRPO; translate prompts to Persian)
+  mbpp:
+    hf: google-research-datasets/mbpp
+    split: train
+    format: mbpp
+    license: cc-by-4.0
+    use: [grpo, eval]
+    out: data/raw/mbpp.jsonl
+    max_rows: 1000
+  # ---------- Persian benchmarks (EVAL ONLY — never train on them; decontaminate against them)
+  khayyam_challenge:
+    hf: raia-center/khayyam-challenge
+    license: verify
+    use: [eval]
+    verify: true
+  parsinlu:
+    hf: persiannlp/parsinlu_reading_comprehension
+    license: verify
+    use: [eval]
+    verify: true

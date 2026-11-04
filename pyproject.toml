@@ -1,0 +1,75 @@
+[project]
+name = "myllm"
+version = "0.1.0"
+description = "Persian/English assistant + coding LLM: from-scratch tiny GPT lab, SOTA post-training (distill/SFT/DPO/KTO/GKD/GRPO), evaluation, serving gateway and a safe weekly data flywheel."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "pyyaml>=6.0",
+    "numpy>=2.0",
+    "datasketch>=1.6",
+]
+
+[project.optional-dependencies]
+# Core ML stack. Pinned with lower bounds here; exact versions live in uv.lock.
+train = [
+    "torch>=2.6",
+    "transformers>=5.0",
+    "trl>=1.0",
+    "peft>=0.17",
+    "datasets>=4.0",
+    "accelerate>=1.5",
+    "tokenizers>=0.21",
+]
+# 4-bit QLoRA (needs an NVIDIA GPU; works on Linux and native Windows).
+qlora = ["bitsandbytes>=0.45"]
+# OpenAI-compatible gateway (auth, rate limit, consent-aware logging, canary routing).
+serve = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+]
+# Optional experiment tracking.
+track = ["wandb>=0.19"]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+myllm-clean = "myllm.data.pipeline:main"
+myllm-sft = "myllm.train.sft:main"
+myllm-dpo = "myllm.train.dpo:main"
+myllm-kto = "myllm.train.kto:main"
+myllm-gkd = "myllm.train.gkd:main"
+myllm-grpo = "myllm.train.grpo:main"
+myllm-eval = "myllm.eval.run_eval:main"
+myllm-gate = "myllm.flywheel.gate:main"
+myllm-gateway = "myllm.serve.gateway:main"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/myllm"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "slow: trainer smoke tests (a few seconds each on CPU)",
+]
+
+[tool.uv]
+# Unsloth and vLLM pin their own torch/transformers versions; install them in a
+# separate GPU environment (see docs/phase-2.md and docs/phase-4.md) instead of here.
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501", "B008", "B905", "E731"]

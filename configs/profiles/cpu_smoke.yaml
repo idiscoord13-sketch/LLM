@@ -1,0 +1,14 @@
+# Offline CPU smoke profile: random tiny Qwen3 architecture + ChatML tokenizer built
+# from data/samples. Catches format/shape bugs in seconds; numbers mean nothing.
+model:
+  name: tiny://qwen3
+  teacher: tiny://qwen3-teacher
+  load_in_4bit: false
+  gradient_checkpointing: false
+train:
+  batch_size: 2
+  grad_accum: 1
+  max_length: 256
+  smoke_steps: 3
+  report_to: none
+  save_strategy: "no"

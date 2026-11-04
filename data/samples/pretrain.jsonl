@@ -1,0 +1,35 @@
+{"text": "زبان فارسی یکی از زبان‌های هندوایرانی است که در ایران، افغانستان و تاجیکستان به آن سخن می‌گویند. این زبان پیشینه‌ای بیش از هزار سال ادبیات مکتوب دارد.", "domain": "fa"}
+{"text": "شاهنامه‌ی فردوسی یکی از بزرگ‌ترین آثار حماسی جهان است. فردوسی در این کتاب داستان پادشاهان و پهلوانان ایران را از آغاز تا حمله‌ی اعراب روایت می‌کند.", "domain": "fa"}
+{"text": "یادگیری ماشین شاخه‌ای از هوش مصنوعی است که به رایانه‌ها اجازه می‌دهد بدون برنامه‌نویسی صریح، از داده‌ها الگو یاد بگیرند.", "domain": "fa"}
+{"text": "مدل‌های زبانی بزرگ با پیش‌بینی توکن بعدی آموزش می‌بینند. هرچه داده‌ی آموزشی تمیزتر و متنوع‌تر باشد، مدل توانایی بهتری در درک و تولید متن پیدا می‌کند.", "domain": "fa"}
+{"text": "تهران پایتخت ایران و پرجمعیت‌ترین شهر این کشور است. این شهر در دامنه‌ی جنوبی رشته‌کوه البرز قرار دارد.", "domain": "fa"}
+{"text": "آب در دمای صد درجه‌ی سانتی‌گراد و فشار یک اتمسفر به جوش می‌آید. در ارتفاعات بالاتر، به‌دلیل فشار کمتر، نقطه‌ی جوش پایین‌تر است.", "domain": "fa"}
+{"text": "حافظ شیرازی شاعر بزرگ قرن هشتم هجری است. غزل‌های او سرشار از عرفان، عشق و نقد ریاکاری است و دیوانش در بیشتر خانه‌های ایرانی پیدا می‌شود.", "domain": "fa"}
+{"text": "برای نوشتن یک برنامه‌ی خوب، ابتدا مسئله را دقیق تعریف کنید، سپس آن را به بخش‌های کوچک‌تر تقسیم کنید و برای هر بخش تست بنویسید.", "domain": "fa"}
+{"text": "فتوسنتز فرایندی است که در آن گیاهان با استفاده از نور خورشید، آب و دی‌اکسید کربن، قند و اکسیژن تولید می‌کنند.", "domain": "fa"}
+{"text": "پایتون یک زبان برنامه‌نویسی سطح بالا است که به‌خاطر خوانایی بالا و کتابخانه‌های فراوان در علم داده و هوش مصنوعی بسیار محبوب است.", "domain": "fa"}
+{"text": "نوروز جشن آغاز سال نو در تقویم خورشیدی است و همزمان با اعتدال بهاری برگزار می‌شود. سفره‌ی هفت‌سین از نمادهای این جشن است.", "domain": "fa"}
+{"text": "در ریاضیات، عدد اول عددی طبیعی بزرگ‌تر از یک است که فقط بر یک و خودش بخش‌پذیر باشد؛ مانند دو، سه، پنج و هفت.", "domain": "fa"}
+{"text": "کیفیت داده از کمیت آن مهم‌تر است. چند هزار نمونه‌ی تمیز و دقیق می‌تواند از میلیون‌ها نمونه‌ی بی‌کیفیت مفیدتر باشد.", "domain": "fa"}
+{"text": "خلیج فارس پهنه‌ای آبی در جنوب ایران است که از راه تنگه‌ی هرمز به دریای عمان و اقیانوس هند می‌پیوندد.", "domain": "fa"}
+{"text": "الگوریتم مرتب‌سازی ادغامی آرایه را به دو نیمه تقسیم می‌کند، هر نیمه را جداگانه مرتب می‌کند و سپس دو نیمه‌ی مرتب را با هم ادغام می‌کند.", "domain": "fa"}
+{"text": "سعدی در گلستان و بوستان، اندرزهای اخلاقی را با زبانی ساده و دلنشین بیان کرده است. جمله‌ی «بنی آدم اعضای یک پیکرند» از اوست.", "domain": "fa"}
+{"text": "باران اسیدی زمانی رخ می‌دهد که گازهایی مانند دی‌اکسید گوگرد و اکسیدهای نیتروژن با بخار آب جو واکنش دهند.", "domain": "fa"}
+{"text": "برای حفظ سلامت قلب، ورزش منظم، خواب کافی، تغذیه‌ی متعادل و پرهیز از دخانیات توصیه می‌شود.", "domain": "fa"}
+{"text": "شبکه‌ی عصبی از لایه‌هایی از نورون‌های مصنوعی تشکیل شده است که وزن‌هایشان با الگوریتم پس‌انتشار خطا به‌روزرسانی می‌شود.", "domain": "fa"}
+{"text": "اصفهان به‌خاطر میدان نقش جهان، سی‌وسه‌پل و مسجد شیخ لطف‌الله شهرت جهانی دارد و روزگاری پایتخت صفویان بود.", "domain": "fa"}
+{"text": "Large language models are trained to predict the next token. Data quality matters more than raw quantity.", "domain": "en"}
+{"text": "The transformer architecture relies on self-attention, which lets every token look at every previous token in the sequence.", "domain": "en"}
+{"text": "Rotary position embeddings encode relative positions by rotating query and key vectors by an angle proportional to position.", "domain": "en"}
+{"text": "Grouped-query attention shares key and value heads across groups of query heads, which shrinks the KV cache during inference.", "domain": "en"}
+{"text": "A good evaluation set is written before training starts; without it you cannot tell whether a change helped or hurt.", "domain": "en"}
+{"text": "Direct preference optimization trains a policy directly on pairs of chosen and rejected responses without a separate reward model.", "domain": "en"}
+{"text": "Knowledge distillation trains a small student model to imitate the output distribution of a larger teacher model.", "domain": "en"}
+{"text": "Quantization reduces the numerical precision of weights, saving memory and speeding up inference with a small quality cost.", "domain": "en"}
+{"text": "Unit tests catch regressions early. Run them before every commit and keep them fast.", "domain": "en"}
+{"text": "The Persian language is written in a modified Arabic script from right to left and uses the zero-width non-joiner extensively.", "domain": "en"}
+{"text": "def fibonacci(n: int) -> int:\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n", "domain": "code"}
+{"text": "def is_prime(n: int) -> bool:\n    if n < 2:\n        return False\n    i = 2\n    while i * i <= n:\n        if n % i == 0:\n            return False\n        i += 1\n    return True\n", "domain": "code"}
+{"text": "def merge_sort(xs):\n    if len(xs) <= 1:\n        return xs\n    mid = len(xs) // 2\n    left, right = merge_sort(xs[:mid]), merge_sort(xs[mid:])\n    out = []\n    while left and right:\n        out.append(left.pop(0) if left[0] <= right[0] else right.pop(0))\n    return out + left + right\n", "domain": "code"}
+{"text": "import json\n\nwith open('data.jsonl', encoding='utf-8') as fh:\n    rows = [json.loads(line) for line in fh]\nprint(len(rows))\n", "domain": "code"}
+{"text": "class Stack:\n    def __init__(self):\n        self.items = []\n\n    def push(self, x):\n        self.items.append(x)\n\n    def pop(self):\n        return self.items.pop()\n", "domain": "code"}

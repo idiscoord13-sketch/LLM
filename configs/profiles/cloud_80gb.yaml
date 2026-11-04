@@ -1,0 +1,18 @@
+# One rented 80 GB GPU (A100/H100). Student 14B in bf16 LoRA (no 4-bit needed),
+# or 32B with QLoRA. Also the right box to host a 32B teacher with vLLM.
+model:
+  name: Qwen/Qwen3-14B
+  backend: hf
+  load_in_4bit: false
+  dtype: bfloat16
+  attn_implementation: sdpa     # flash_attention_2 if installed
+  gradient_checkpointing: true
+train:
+  batch_size: 4
+  grad_accum: 4
+  max_length: 8192
+  optim: adamw_torch_fused
+grpo:
+  num_generations: 16
+  max_completion_length: 2048
+  use_vllm: true

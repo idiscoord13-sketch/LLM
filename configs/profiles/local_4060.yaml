@@ -1,0 +1,20 @@
+# NVIDIA RTX 4060 — 8 GB VRAM (if you have the 16 GB 4060 Ti, use batch_size: 2 and max_length: 4096).
+# Student: a 4B model with QLoRA (4-bit NF4 base + LoRA adapters) fits comfortably.
+# [experimental] An 8B student also fits with backend: unsloth and max_length: 1024.
+# Model ids move fast: run scripts/select_base.py and use the newest family release.
+model:
+  name: Qwen/Qwen3-4B-Instruct-2507
+  teacher_endpoint: ${TEACHER_BASE_URL}   # big teachers run on a rented GPU, not on the 4060
+  backend: hf                  # switch to unsloth for ~2x speed / less VRAM
+  load_in_4bit: true
+  dtype: bfloat16
+  attn_implementation: sdpa
+  gradient_checkpointing: true
+train:
+  batch_size: 1
+  grad_accum: 16
+  max_length: 2048
+  optim: paged_adamw_8bit
+grpo:
+  num_generations: 4
+  max_completion_length: 512

@@ -1,0 +1,16 @@
+# One rented 24 GB GPU (RTX 3090/4090, L4, A10). Student up to 8B (14B tight) with QLoRA.
+model:
+  name: Qwen/Qwen3-8B
+  backend: hf
+  load_in_4bit: true
+  dtype: bfloat16
+  attn_implementation: sdpa
+  gradient_checkpointing: true
+train:
+  batch_size: 2
+  grad_accum: 8
+  max_length: 4096
+  optim: paged_adamw_8bit
+grpo:
+  num_generations: 8
+  max_completion_length: 1024

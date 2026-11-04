@@ -1,0 +1,18 @@
+# North star: a small (1.7B-4B) Persian + coding student that beats the same-size
+# official instruct model and closes the gap to the 2x larger one. Measured, not claimed.
+student_sizes: [Qwen/Qwen3-1.7B, Qwen/Qwen3-4B-Instruct-2507]
+reference_models:
+  same_size: Qwen/Qwen3-4B-Instruct-2507
+  double_size: Qwen/Qwen3-8B
+success:
+  win_rate_vs_same_size: {min: 0.60, ci_lower_above: 0.5}   # pairwise judge on the golden set
+  code_pass@1_vs_same_size: {min_delta: 0.05}
+  persian_mmlu_vs_same_size: {min_delta: 0.02}            # Khayyam Challenge via lm-eval-harness
+  gap_closed_to_double_size: {min_fraction: 0.5}          # (ours - same) / (double - same)
+  safety_refusal: {min: 0.9}
+  over_refusal: {max: 0.1}
+evidence_rules:
+  seeds: 3                     # training seeds per claim
+  report_ci: true
+  decontaminated: true         # n-gram decontam against every reported benchmark
+  private_test_split: true     # keep 20% of the golden set never seen during development

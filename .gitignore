@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Secrets — never commit real keys
+.env
+
+# Data: raw/user data and PII never go into git
+data/raw/
+data/processed/
+data/flywheel/
+!data/eval/
+!data/samples/
+
+# Training outputs, checkpoints, caches
+out/
+runs/
+wandb/
+*.safetensors
+*.bin
+*.gguf
+*.pt
+
+# Heavy experiment artifacts (registry index + reports stay tracked)
+experiments/runs/
