@@ -52,26 +52,53 @@ def _fetch_json(path: str, base: str = RAW_BASE, retries: int = 3):
     return None
 
 
-def download(cat_url: str, out_dir: Path = DEFAULT_DIR, max_poems: int = 500, recursive: bool = True) -> int:
-    """Download every poem of a category (e.g. ``/hafez/ghazal``) into ``out_dir`` as JSON files."""
-    cat = _fetch_json(f"poets{cat_url}/_cat.json")
-    n = 0
-    queue = [cat]
-    while queue and n < max_poems:
-        c = queue.pop(0)
-        for p in c.get("Poems", []):
-            if n >= max_poems:
-                break
-            dest = out_dir / (p["FullUrl"].strip("/") + ".json")
-            if not dest.exists():
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                poem = _fetch_json(f"poets{p['FullUrl']}.json")
-                dest.write_text(json.dumps(poem, ensure_ascii=False), encoding="utf-8")
-            n += 1
+_KEEP = ("Id", "CatId", "Title", "FullUrl", "RhymeLetters", "Metre", "LiteraryTags", "Tags")
+_KEEP_VERSE = ("VOrder", "Position", "Text", "CoupletIndex")
+
+
+def slim(poem: dict) -> dict:
+    """Keep what scanning/evaluation needs (drops long summaries and HTML -> ~5x smaller on disk)."""
+    out = {k: poem[k] for k in _KEEP if k in poem}
+    out["Verses"] = [{k: v[k] for k in _KEEP_VERSE if k in v} for v in poem.get("Verses", [])]
+    return out
+
+
+def list_poems(cat_url: str, max_poems: int = 500, recursive: bool = True) -> list[str]:
+    """Breadth-first walk of a category tree; returns up to ``max_poems`` poem urls."""
+    urls: list[str] = []
+    queue = [cat_url]
+    while queue and len(urls) < max_poems:
+        cat = _fetch_json(f"poets{queue.pop(0)}/_cat.json")
+        urls.extend(p["FullUrl"] for p in cat.get("Poems", []))
         if recursive:
-            for child in c.get("ChildCats", []):
-                queue.append(_fetch_json(f"poets{child['FullUrl']}/_cat.json"))
-    return n
+            queue.extend(child["FullUrl"] for child in cat.get("ChildCats", []))
+    return urls[:max_poems]
+
+
+def download(cat_url: str, out_dir: Path = DEFAULT_DIR, max_poems: int = 500, recursive: bool = True,
+             threads: int = 8) -> int:
+    """Download the poems of a category (e.g. ``/hafez/ghazal``) into ``out_dir`` (parallel, resumable)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    urls = list_poems(cat_url, max_poems, recursive)
+
+    def one(url: str) -> bool:
+        dest = Path(out_dir) / (url.strip("/") + ".json")
+        if dest.exists():
+            return False
+        try:
+            poem = _fetch_json(f"poets{url}.json")
+        except Exception:
+            return False
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_suffix(".part")
+        tmp.write_text(json.dumps(slim(poem), ensure_ascii=False), encoding="utf-8")
+        tmp.replace(dest)  # never leave a half-written poem behind
+        return True
+
+    with ThreadPoolExecutor(max_workers=threads) as pool:
+        list(pool.map(one, urls))
+    return len(urls)
 
 
 def iter_poem_files(root: Path = DEFAULT_DIR) -> Iterator[Path]:

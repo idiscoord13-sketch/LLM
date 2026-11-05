@@ -98,31 +98,62 @@ def _compatible(lexical: str, surface: str) -> bool:
     return (lv == sv or (lv == "V" and sv == "A")) and (sc == lc or sc == lc - 1)
 
 
-def learn(hems: list[Hemistich], iterations: int = 2, max_cost: float = 2.0, min_count: int = 2,
-          log_every: int = 5000) -> dict[str, dict[str, float]]:
+_WORKER: dict = {}
+
+
+def _init_worker(lexicon: dict, max_cost: float) -> None:
     from myllm.aruz.scan import Scanner
 
+    _WORKER["scanner"] = Scanner(lexicon)
+    _WORKER["max_cost"] = max_cost
+
+
+def _signatures_job(h: Hemistich):
+    return word_signatures(_WORKER["scanner"], h, _WORKER["max_cost"])
+
+
+def learn(hems: list[Hemistich], iterations: int = 2, max_cost: float = 2.0, min_count: int = 2,
+          log_every: int = 5000, workers: int = 1) -> dict[str, dict[str, float]]:
+    """EM-style lexicon learning; ``workers > 1`` scans in parallel processes (same result, faster)."""
     lexicon: dict[str, dict[str, float]] = {}
     for it in range(iterations):
-        scanner = Scanner(lexicon)
         counts: dict[str, Counter] = defaultdict(Counter)
         used, t0 = 0, time.time()
-        for k, h in enumerate(hems):
-            pairs = word_signatures(scanner, h, max_cost)
-            if pairs:
-                used += 1
-                for part, sig in pairs:
-                    counts[part][sig] += 1
-            if log_every and (k + 1) % log_every == 0:
-                print(f"  iter {it + 1}: {k + 1}/{len(hems)} scanned, {used} used, {time.time() - t0:.0f}s", flush=True)
+        if workers > 1:
+            import multiprocessing as mp
+
+            ctx = mp.get_context("fork")
+            with ctx.Pool(workers, initializer=_init_worker, initargs=(lexicon, max_cost)) as pool:
+                results = pool.imap(_signatures_job, hems, chunksize=64)
+                for k, pairs in enumerate(results):
+                    used += _count(pairs, counts)
+                    _log(log_every, it, k, len(hems), used, t0)
+        else:
+            _init_worker(lexicon, max_cost)
+            for k, h in enumerate(hems):
+                used += _count(_signatures_job(h), counts)
+                _log(log_every, it, k, len(hems), used, t0)
         lexicon = {}
         for part, c in counts.items():
             total = sum(c.values())
             if total < min_count:
                 continue
             lexicon[part] = {sig: round(n / total, 4) for sig, n in c.most_common(4) if n / total >= 0.05}
-        print(f"iteration {it + 1}: {used}/{len(hems)} hemistichs usable, lexicon size {len(lexicon)}")
+        print(f"iteration {it + 1}: {used}/{len(hems)} hemistichs usable, lexicon size {len(lexicon)}", flush=True)
     return lexicon
+
+
+def _count(pairs, counts) -> int:
+    if not pairs:
+        return 0
+    for part, sig in pairs:
+        counts[part][sig] += 1
+    return 1
+
+
+def _log(every: int, it: int, k: int, n: int, used: int, t0: float) -> None:
+    if every and (k + 1) % every == 0:
+        print(f"  iter {it + 1}: {k + 1}/{n} scanned, {used} used, {time.time() - t0:.0f}s", flush=True)
 
 
 def save_lexicon(lex: dict, path: str | Path) -> None:
@@ -146,8 +177,13 @@ def main(argv: list[str] | None = None) -> int:
     lp.add_argument("--iterations", type=int, default=2)
     lp.add_argument("--holdout", type=float, default=0.2, help="fraction of poems kept out for evaluation")
     lp.add_argument("--per-meter-cap", type=int, default=4000, help="balance metres (Shahnameh dominates)")
+    lp.add_argument("--workers", type=int, default=1, help="parallel scanning processes")
+    lp.add_argument("--seed", type=int, default=42)
     a = p.parse_args(argv)
     rows = [h for h in load_corpus(Path(a.root)) if not is_holdout(h.poem_url, a.holdout)]
+    import random
+
+    random.Random(a.seed).shuffle(rows)  # sample across poets/poems, not the first files on disk
     per: Counter = Counter()
     picked = []
     for h in rows:
@@ -156,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
             picked.append(h)
     picked = picked[: a.max_hemistichs]
     print(f"learning from {len(picked)} hemistichs ({len(per)} metres, holdout {a.holdout:.0%} of poems excluded)")
-    lex = learn(picked, iterations=a.iterations)
+    lex = learn(picked, iterations=a.iterations, workers=a.workers)
     save_lexicon(lex, a.out)
     print(f"saved {len(lex)} entries -> {a.out}")
     return 0

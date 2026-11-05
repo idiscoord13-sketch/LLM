@@ -23,7 +23,7 @@ import argparse
 import math
 from dataclasses import dataclass, field
 
-from myllm.aruz.meters import FEET, METERS, Meter
+from myllm.aruz.meters import FEET, METERS, Meter, meter_key
 from myllm.aruz.phonology import Reading, Syl, add_izafe, lengthen_final, split_words, word_readings
 
 BEAM = 300
@@ -126,11 +126,22 @@ class ScanResult:
 
 
 class Scanner:
+    """Rule-based scanner, optionally combined with a metre prior and a neural metre classifier.
+
+    score(metre) = Σ_hemistichs scanner_cost  +  β · Σ_hemistichs −log p_nn(metre | text)  +  α · −log P(metre)
+    (α = ``prior_weight``, β = ``classifier_weight``; both tuned on the dev split, see scripts/tune_aruz.py)
+    """
+
     def __init__(self, lexicon: dict[str, dict[str, float]] | None = None, meters: list[Meter] | None = None,
-                 beam: int = BEAM):
+                 beam: int = BEAM, prior: dict[str, float] | None = None, prior_weight: float = 0.0,
+                 classifier=None, classifier_weight: float = 0.0):
         self.lexicon = lexicon or {}
         self.meters = meters or METERS
         self.beam = beam
+        self.prior = prior or {}
+        self.prior_weight = prior_weight if prior else 0.0
+        self.classifier = classifier
+        self.classifier_weight = classifier_weight if classifier is not None else 0.0
         self._cache: dict[str, tuple[Reading, ...]] = {}
 
     # -- readings ---------------------------------------------------------------------------
@@ -248,8 +259,7 @@ class Scanner:
                 return self.scan(text)
             finally:
                 self.meters = saved
-        best, _ = self.score_meters(text)
-        return self._result(text, best)
+        return self.scan_poem([text])[0]
 
     def scan_couplet(self, first: str, second: str) -> tuple[ScanResult, ScanResult]:
         r1, r2 = self.scan_poem([first, second])
@@ -268,15 +278,29 @@ class Scanner:
         patterns = set().union(*[b.keys() for b in bests]) if bests else set()
         if not patterns:
             return [self._result(h, b) for h, b in zip(hemistichs, bests)]
-        joint = sorted(
-            (sum(b[p][0] if p in b else self.MISSING_PENALTY for b in bests), p) for p in patterns
-        )
+        joint = sorted((self.joint_cost(p, bests, hemistichs), p) for p in patterns)
         pick = joint[0][1]
-        ranking = [(_meter_by_pattern(self.meters, p).name, round(c, 3)) for c, p in joint[:5]]
+        ranking = _ranking(self.meters, joint)
         out = []
         for h, b in zip(hemistichs, bests):
             out.append(self._result(h, {pick: b[pick]} if pick in b else b, ranking, joint))
         return out
+
+    def joint_cost(self, pattern: str, bests: list[dict], hemistichs: list[str]) -> float:
+        cost = sum(b[pattern][0] if pattern in b else self.MISSING_PENALTY for b in bests)
+        key = meter_key(_meter_by_pattern(self.meters, pattern))
+        if self.classifier_weight:
+            for lp in self._nn_logprobs(hemistichs):
+                cost += self.classifier_weight * -lp.get(key, _MIN_LOGP)
+        if self.prior_weight:
+            cost += self.prior_weight * -self.prior.get(key, _MIN_LOGP)
+        return cost
+
+    def _nn_logprobs(self, hemistichs: list[str]) -> list[dict[str, float]]:
+        key = tuple(hemistichs)
+        if getattr(self, "_nn_key", None) != key:
+            self._nn_key, self._nn_val = key, self.classifier.logprobs(hemistichs)
+        return self._nn_val
 
     def _result(self, text, best, ranking=None, order=None) -> ScanResult:
         if not best:
@@ -285,7 +309,7 @@ class Scanner:
         pattern, (cost, hyp, ops) = items[0]
         meter = _meter_by_pattern(self.meters, pattern)
         if ranking is None:
-            ranking = [(_meter_by_pattern(self.meters, p).name, round(v[0], 3)) for p, v in items[:5]]
+            ranking = _ranking(self.meters, [(v[0], p) for p, v in items])
         costs = [c for _, c in ranking]
         gap = (costs[1] - costs[0]) if len(costs) > 1 else 2.0
         units, owner = self.units(hyp.syls)
@@ -295,6 +319,24 @@ class Scanner:
         notes += [FA_NOTES[op] for op, *_ in ops if op in FA_NOTES]
         return ScanResult(text, meter, round(cost, 3), sylls, weights, _feet_groups(meter, ops, owner, sylls),
                           notes, ranking, round(1 - math.exp(-2 * gap), 3))
+
+
+_MIN_LOGP = math.log(1e-4)
+
+
+def _ranking(meters: list[Meter], joint: list[tuple[float, str]], k: int = 5) -> list[tuple[str, float]]:
+    """Best cost per metre *family key* (the rubāʿī variants count as one answer)."""
+    seen, out = set(), []
+    for c, p in joint:
+        m = _meter_by_pattern(meters, p)
+        key = meter_key(m)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((m.name, round(c, 3)))
+        if len(out) == k:
+            break
+    return out
 
 
 def _committed(syls: tuple[Syl, ...]) -> str:

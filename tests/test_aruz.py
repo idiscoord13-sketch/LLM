@@ -1,5 +1,7 @@
 """«عروض‌یار»: syllabification, metre table, scanning of famous couplets, rhyme, bot, lexicon."""
 
+import math
+
 import pytest
 
 from myllm.aruz.bot import AruzService
@@ -180,3 +182,116 @@ def test_lexicon_learning_and_use():
     sc = Scanner(lex)
     assert sc.scan_couplet(POEM["Verses"][0]["Text"], POEM["Verses"][1]["Text"])[0].meter.name == "رمل مسدس محذوف"
     assert _compatible("V1", "V0") and _compatible("V0", "A0") and not _compatible("A0", "V0")
+
+
+# ---------------- big update: diagnosis, exercises, bot commands, classifier, workers
+def test_parse_signs_and_diagnosis(scanner):
+    from myllm.aruz.diagnose import diagnose, format_diagnosis, parse_signs
+
+    assert parse_signs("– U — u ◡ -") == "-u-uu-"
+    verse = "بشنو این نی چون شکایت می‌کند"
+    ok = diagnose(scanner, verse, "– U – – – U – – – U –")
+    assert ok.mistakes == [] and ok.score == 1.0
+    assert "آفرین" in format_diagnosis(ok)
+    bad = diagnose(scanner, verse, "– U – – U U – – – U –")  # «چون» marked short
+    assert len(bad.mistakes) == 1 and bad.mistakes[0].syllable == "چون"
+    assert "مصوت بلند" in bad.mistakes[0].reason
+    extra = diagnose(scanner, verse, "– U – U – – U – – – U –")
+    assert any(not m.expected for m in extra.mistakes)  # an extra sign is reported as such
+    assert "نشانه‌ی اضافه" in format_diagnosis(extra)
+
+
+def test_exercises_are_verified_and_render(scanner):
+    import random
+
+    from myllm.aruz.exercises import questions_for, to_markdown
+
+    rng = random.Random(0)
+    qs = questions_for(scanner, COUPLETS[0][0], COUPLETS[0][1], "فاعلاتن فاعلاتن فاعلن (رمل مسدس محذوف)", rng,
+                       min_conf=0.0)
+    kinds = {q.kind for q in qs}
+    assert {"meter", "taqti"} <= kinds
+    meter_q = next(q for q in qs if q.kind == "meter")
+    assert len(meter_q.options) == 4 and "رمل مسدس محذوف" in meter_q.options[meter_q.answer]
+    assert len(set(meter_q.options)) == 4
+    # a wrong Ganjoor label means the engine and the label disagree -> no question
+    assert questions_for(scanner, COUPLETS[0][0], COUPLETS[0][1], "مستفعلن مستفعلن مستفعلن مستفعلن", rng,
+                         min_conf=0.0) == []
+    md = to_markdown(qs)
+    assert "پاسخ‌نامه" in md and "بشنو" in md
+
+
+def test_bot_check_and_quiz(scanner, tmp_path):
+    import json
+    import random
+    from dataclasses import asdict
+
+    from myllm.aruz.exercises import questions_for
+
+    qs = questions_for(scanner, COUPLETS[1][0], COUPLETS[1][1], None, random.Random(0), min_conf=0.0)
+    bank = tmp_path / "bank.jsonl"
+    bank.write_text("\n".join(json.dumps(asdict(q), ensure_ascii=False) for q in qs), encoding="utf-8")
+    s = AruzService(exercises_path=str(bank), scanner=scanner)
+    assert "/check" in s.handle_text("/check")  # usage help when the signs line is missing
+    out = s.handle_text("/check\nبشنو این نی چون شکایت می‌کند\n– U – – – U – – – U –", chat_id=7)
+    assert "آفرین" in out
+    quiz = s.handle_text("/tamrin", chat_id=7)
+    assert "1)" in quiz and 7 in s.pending
+    q = s.pending[7]
+    assert "درست است" in s.handle_text(str(q.answer + 1).translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")), chat_id=7)
+    assert 7 not in s.pending
+
+
+def test_meter_key_and_ranking_dedupes_rubai():
+    from myllm.aruz.meters import meter_key
+    from myllm.aruz.scan import _ranking
+
+    rub = [m for m in METERS if m.family == "رباعی"]
+    assert meter_key(rub[0]) == meter_key(rub[1]) == "رباعی"
+    other = next(m for m in METERS if m.family != "رباعی")
+    assert meter_key(other) == other.pattern
+    joint = [(1.0, rub[0].pattern), (1.1, rub[1].pattern), (1.5, other.pattern)]
+    assert [n for n, _ in _ranking(METERS, joint)] == [rub[0].name, other.name]
+
+
+def test_prior_shifts_choice_between_sibling_meters():
+    s_plain = Scanner()
+    best, _ = s_plain.score_meters("زندگی بر دوش ما بار گرانی بیش نیست")
+    assert len(best) >= 2
+    pats = sorted(best, key=lambda p: best[p][0])
+    second = next(m for m in METERS if m.pattern == pats[1])
+    from myllm.aruz.meters import meter_key
+
+    prior = {meter_key(second): 0.0}  # every other metre gets the floor log-prob
+    s_prior = Scanner(prior=prior, prior_weight=1.0)
+    assert s_prior.scan("زندگی بر دوش ما بار گرانی بیش نیست").meter.pattern == second.pattern
+
+
+@pytest.mark.slow
+def test_classifier_smoke_and_ensemble(tmp_path):
+    import json
+    from types import SimpleNamespace
+
+    from myllm.aruz.classifier import MeterClassifier, train
+
+    root = tmp_path / "corpus"
+    poems = [
+        ("/a/1", "فاعلاتن فاعلاتن فاعلن (رمل مسدس محذوف یا وزن مثنوی)", COUPLETS[0][:2]),
+        ("/b/1", "فعولن فعولن فعولن فعل (متقارب مثمن محذوف یا وزن شاهنامه)", COUPLETS[1][:2]),
+    ]
+    for url, rhythm, (m1, m2) in poems:
+        f = root / (url.strip("/") + ".json")
+        f.parent.mkdir(parents=True, exist_ok=True)
+        verses = [{"Position": "Right", "Text": m1, "CoupletIndex": 0}, {"Position": "Left", "Text": m2, "CoupletIndex": 0}] * 4
+        f.write_text(json.dumps({"FullUrl": url, "Metre": {"Rhythm": rhythm}, "Verses": verses}, ensure_ascii=False),
+                     encoding="utf-8")
+    out = tmp_path / "clf.pt"
+    args = SimpleNamespace(roots=[str(root)], out=str(out), holdout=0.0, per_class_cap=100, min_class=1, epochs=1,
+                           batch=8, lr=1e-3, d=32, layers=1, heads=2, ff=64, dropout=0.0, dev_size=10, threads=1,
+                           device="cpu", seed=42, smoke=True)
+    train(args)
+    clf = MeterClassifier.load(out)
+    lp = clf.logprobs([COUPLETS[0][0]])[0]
+    assert set(lp) == set(clf.classes) and abs(sum(math.exp(v) for v in lp.values()) - 1) < 1e-4
+    ens = Scanner(classifier=clf, classifier_weight=0.5)
+    assert ens.scan_couplet(COUPLETS[0][0], COUPLETS[0][1])[0].meter.name == "رمل مسدس محذوف"

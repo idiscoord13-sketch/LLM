@@ -122,6 +122,11 @@ def meter_for_rhythm(rhythm: str) -> Meter | None:
     return BY_PATTERN.get(pat)
 
 
+def meter_key(m: Meter) -> str:
+    """Identity used for evaluation, priors and the classifier: the pattern, or "رباعی" for the whole family."""
+    return "رباعی" if m.family == "رباعی" else m.pattern
+
+
 def same_meter(a: Meter | None, b: Meter | None) -> bool:
     if a is None or b is None:
         return False
