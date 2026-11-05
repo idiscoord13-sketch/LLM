@@ -405,12 +405,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--lexicon", default=DEFAULT_LEXICON,
                    help="learned lexicon JSON (myllm.aruz.lexicon); used automatically if present")
     p.add_argument("--no-lexicon", action="store_true", help="rules only")
+    p.add_argument("--ensemble", default="data/processed/aruz_ensemble.json", help="α, β, prior (scripts/tune_aruz.py)")
+    p.add_argument("--classifier", default="out/aruz/classifier.pt")
     a = p.parse_args(argv)
-    from myllm.aruz.lexicon import load_lexicon
+    from myllm.aruz.engine import build_scanner
 
-    # held-out couplet accuracy: rules only 81.4% -> with lexicon 91.9% (docs/product/aruz.md)
-    sc = Scanner(None if a.no_lexicon else load_lexicon(a.lexicon))
-    if len(a.hemistichs) >= 2:
+    # each component is used only if its file exists (docs/product/aruz.md has the measured gains)
+    sc = Scanner() if a.no_lexicon else build_scanner(a.lexicon, a.ensemble, a.classifier)
+    if len(a.hemistichs) > 2:
+        for r in sc.scan_poem(a.hemistichs)[:2]:
+            print(format_result(r), end="\n\n")
+    elif len(a.hemistichs) == 2:
         for r in sc.scan_couplet(a.hemistichs[0], a.hemistichs[1]):
             print(format_result(r), end="\n\n")
     else:

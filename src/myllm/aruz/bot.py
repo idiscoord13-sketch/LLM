@@ -45,8 +45,16 @@ _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "0123456789"
 
 class AruzService:
     def __init__(self, lexicon_path: str | None = None, exercises_path: str | None = None,
-                 scanner: Scanner | None = None, seed: int = 0):
-        self.scanner = scanner or Scanner(load_lexicon(lexicon_path))
+                 scanner: Scanner | None = None, seed: int = 0, ensemble_path: str | None = None,
+                 classifier_path: str | None = None):
+        if scanner is None:
+            if ensemble_path or classifier_path:
+                from myllm.aruz.engine import build_scanner
+
+                scanner = build_scanner(lexicon_path, ensemble_path, classifier_path)
+            else:
+                scanner = Scanner(load_lexicon(lexicon_path))
+        self.scanner = scanner
         self.stats: Counter = Counter()
         from myllm.aruz.exercises import load_bank
 
@@ -137,10 +145,10 @@ def _call(base: str, token: str, method: str, params: dict, timeout: float = 70)
         return json.loads(resp.read().decode("utf-8"))
 
 
-def poll(token: str, platform: str = "bale", lexicon: str | None = None,
-         exercises: str | None = None) -> None:  # pragma: no cover - network
+def poll(token: str, platform: str = "bale", lexicon: str | None = None, exercises: str | None = None,
+         ensemble: str | None = None, classifier: str | None = None) -> None:  # pragma: no cover - network
     base = API_BASE[platform]
-    service = AruzService(lexicon, exercises)
+    service = AruzService(lexicon, exercises, ensemble_path=ensemble, classifier_path=classifier)
     offset = 0
     print(f"aruz bot running on {platform}…")
     while True:
@@ -164,10 +172,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--platform", choices=sorted(API_BASE), default="bale")
     p.add_argument("--lexicon", default="data/processed/aruz_lexicon.json")
     p.add_argument("--exercises", default="data/processed/aruz_exercises.jsonl")
+    p.add_argument("--ensemble", default="data/processed/aruz_ensemble.json")
+    p.add_argument("--classifier", default="out/aruz/classifier.pt")
     p.add_argument("--repl", action="store_true", help="local console instead of a bot (no token needed)")
     a = p.parse_args(argv)
     if a.repl:
-        service = AruzService(a.lexicon, a.exercises)
+        service = AruzService(a.lexicon, a.exercises, ensemble_path=a.ensemble, classifier_path=a.classifier)
         print(HELP)
         buf: list[str] = []
         while True:
@@ -185,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     token = os.environ.get("ARUZ_BOT_TOKEN")
     if not token:
         raise SystemExit("set ARUZ_BOT_TOKEN (from @BotFather on Telegram or the Bale bot builder)")
-    poll(token, a.platform, a.lexicon, a.exercises)
+    poll(token, a.platform, a.lexicon, a.exercises, a.ensemble, a.classifier)
     return 0
 
 

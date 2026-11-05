@@ -20,10 +20,30 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from myllm.aruz.ganjoor import load_corpus
-from myllm.aruz.lexicon import is_holdout, load_lexicon
+from myllm.aruz.lexicon import is_holdout
 from myllm.aruz.meters import meter_for_rhythm, same_meter
-from myllm.aruz.scan import Scanner
 from myllm.research.stats import bootstrap_ci
+
+_W: dict = {}
+
+
+def _init(lexicon, ensemble, classifier) -> None:
+    from myllm.aruz.engine import build_scanner
+
+    _W["scanner"] = build_scanner(lexicon, ensemble, classifier, threads=1)
+
+
+def _eval_unit(u) -> dict:
+    scanner = _W["scanner"]
+    gold = meter_for_rhythm(u[0].rhythm)
+    if len(u) > 2:
+        r = scanner.scan_poem([x.text for x in u])[0]
+    elif len(u) == 2:
+        r = scanner.scan_couplet(u[0].text, u[1].text)[0]
+    else:
+        r = scanner.scan(u[0].text)
+    return {"gold": gold.name, "pred": r.meter.name if r.meter else None, "ok": same_meter(gold, r.meter),
+            "conf": r.confidence, "poet": u[0].poet, "text": " / ".join(x.text for x in u)}
 
 
 def eval_rhyme(root: Path) -> int:
@@ -49,6 +69,10 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--root", default="data/raw/ganjoor")
     p.add_argument("--lexicon")
+    p.add_argument("--ensemble", help="aruz_ensemble.json (α, β, prior) from scripts/tune_aruz.py")
+    p.add_argument("--classifier", help="neural metre classifier (.pt); used if the ensemble gives β > 0")
+    p.add_argument("--workers", type=int, default=1)
+    p.add_argument("--natural", type=int, default=0, help="sample N units uniformly (real metre frequencies) instead of stratified")
     p.add_argument("--holdout", type=float, default=0.2)
     p.add_argument("--per-meter", type=int, default=60)
     p.add_argument("--couplets", action="store_true", help="evaluate couplets (both hemistichs jointly)")
@@ -81,22 +105,25 @@ def main(argv: list[str] | None = None) -> int:
         if m is not None:
             by_meter[m.name].append(u)
     sample = []
-    for _name, us in sorted(by_meter.items()):
-        rng.shuffle(us)
-        sample.extend(us[: a.per_meter])
-    scanner = Scanner(load_lexicon(a.lexicon) if a.lexicon else None)
+    if a.natural:
+        pool_units = [u for us in by_meter.values() for u in us]
+        rng.shuffle(pool_units)
+        sample = pool_units[: a.natural]
+    else:
+        for _name, us in sorted(by_meter.items()):
+            rng.shuffle(us)
+            sample.extend(us[: a.per_meter])
 
-    results, t0 = [], time.time()
-    for u in sample:
-        gold = meter_for_rhythm(u[0].rhythm)
-        if a.poem_couplets:
-            r = scanner.scan_poem([x.text for x in u])[0]
-        elif a.couplets:
-            r = scanner.scan_couplet(u[0].text, u[1].text)[0]
-        else:
-            r = scanner.scan(u[0].text)
-        results.append({"gold": gold.name, "pred": r.meter.name if r.meter else None, "ok": same_meter(gold, r.meter),
-                        "conf": r.confidence, "poet": u[0].poet, "text": " / ".join(x.text for x in u)})
+    t0 = time.time()
+    init_args = (a.lexicon, a.ensemble, a.classifier)
+    if a.workers > 1:
+        import multiprocessing as mp
+
+        with mp.get_context("fork").Pool(a.workers, initializer=_init, initargs=init_args) as pool:
+            results = pool.map(_eval_unit, sample, chunksize=4)
+    else:
+        _init(*init_args)
+        results = [_eval_unit(u) for u in sample]
     elapsed = time.time() - t0
 
     ok = [float(r["ok"]) for r in results]
@@ -115,7 +142,9 @@ def main(argv: list[str] | None = None) -> int:
     confusion = Counter((r["gold"], r["pred"]) for r in results if not r["ok"]).most_common(8)
 
     report = {
-        "unit": f"poem({a.poem_couplets} couplets)" if a.poem_couplets else ("couplet" if a.couplets else "hemistich"), "n": len(results), "lexicon": bool(a.lexicon),
+        "unit": f"poem({a.poem_couplets} couplets)" if a.poem_couplets else ("couplet" if a.couplets else "hemistich"),
+        "n": len(results), "lexicon": bool(a.lexicon), "ensemble": a.ensemble, "classifier": a.classifier,
+        "sampling": f"natural {a.natural}" if a.natural else f"stratified {a.per_meter}/metre",
         "micro_accuracy": [round(x, 4) for x in micro], "macro_accuracy_over_meters": round(macro, 4),
         "stratified_majority_baseline": round(majority, 4), "seconds_per_item": round(elapsed / max(1, len(results)), 3),
         "by_confidence": {k: {"n": len(v), "acc": round(sum(v) / len(v), 4) if v else None} for k, v in buckets.items()},

@@ -158,18 +158,20 @@ def load_bank(path: str | Path) -> list[Question]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from myllm.aruz.lexicon import load_lexicon
-
     p = argparse.ArgumentParser(description="generate verified prosody exercises")
     p.add_argument("--root", default="data/raw/ganjoor")
     p.add_argument("--n", type=int, default=40)
     p.add_argument("--kinds", default="meter,taqti,ikhtiyar,rhyme")
     p.add_argument("--lexicon", default="data/processed/aruz_lexicon.json")
+    p.add_argument("--ensemble", default="data/processed/aruz_ensemble.json")
+    p.add_argument("--classifier", default="out/aruz/classifier.pt")
     p.add_argument("--out", default="data/processed/aruz_exercises.jsonl")
     p.add_argument("--md", default="out/aruz/worksheet.md")
     p.add_argument("--seed", type=int, default=42)
     a = p.parse_args(argv)
-    scanner = Scanner(load_lexicon(a.lexicon))
+    from myllm.aruz.engine import build_scanner
+
+    scanner = build_scanner(a.lexicon, a.ensemble, a.classifier)
     bank = generate(scanner, Path(a.root), a.n, a.seed, set(a.kinds.split(",")))
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text("\n".join(json.dumps(asdict(q), ensure_ascii=False) for q in bank) + "\n", encoding="utf-8")
