@@ -42,6 +42,7 @@ uv run python -m myllm.train.sft --config configs/sft.yaml --profile local_4060 
 | ۵ | data flywheel هفتگی: consent → PII → سیگنال → داده → آموزش → gate → canary → rollback | [phase-5](docs/phase-5.md) | `scripts/weekly_flywheel.py` |
 | پژوهش | ۷ ایده‌ی اورجینال + چارچوب ablation با آمار | [research](docs/research/README.md) | `python -m myllm.research.ablate` |
 | محصول | **«عروض‌یار»**: تقطیع و تشخیص وزن و قافیه‌ی شعر فارسی برای درس علوم و فنون (بدون GPU) | [product/aruz](docs/product/aruz.md) | `python -m myllm.aruz.scan`، `python -m myllm.aruz.bot` |
+| محصول | **«ادب‌یار»**: آرایه‌ها، بانک تاریخ ادبیات، معلم تطبیقی، آزمون‌ساز چاپی و API ناشران — راهبرد: [product/strategy](docs/product/strategy.md) | [product/adab](docs/product/adab.md) | `myllm.adab.{devices,history,exam,api}` |
 
 ## ساختار
 

@@ -28,6 +28,9 @@
 - ablation: `uv run python -m myllm.research.ablate --config configs/research/<idea>.yaml`
 - عروض‌یار: `uv run python -m myllm.aruz.scan "<مصراع ۱>" "<مصراع ۲>"`، ارزیابی `uv run python scripts/eval_aruz.py --couplets`
   (داده‌ی گنجور در `data/raw/ganjoor` محلی است و commit نمی‌شود؛ لایسنسش روشن نیست)
+- ادب‌یار: آرایه‌ها `uv run python scripts/eval_devices.py --top1`، تاریخ ادبیات `uv run python -m myllm.adab.history build`،
+  آزمون چاپی `uv run python -m myllm.adab.exam`، API ناشران `uv run python -m myllm.adab.api serve` (کلیدها فقط hash؛
+  `configs/api_keys.json` commit نمی‌شود). راهبرد: `docs/product/strategy.md`
 - **کار بعدی برنامه‌ریزی‌شده:** به‌روزرسانی بزرگ عروض‌یار (دقت نزدیک به ۱۰۰٪ + گسترش محصول) — `docs/product/aruz_big_update.md`
 
 ## معماری کد

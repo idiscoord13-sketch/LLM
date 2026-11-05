@@ -29,3 +29,6 @@ wandb/
 
 # Heavy experiment artifacts (registry index + reports stay tracked)
 experiments/runs/
+
+# B2B API: real customer keys (hashed) and usage counters
+configs/api_keys.json

@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to configs/api_keys.json (git-ignored). Create keys with: python -m myllm.adab.api new-key --name \"…\" --plan school. Only SHA-256 hashes go here; the key itself is shown once to the customer. Plans: trial (20/min, 2000/month), school (60/min, 30000/month), pro (300/min, 500000/month); rate_per_minute / monthly_quota may be overridden per key.",
+  "keys": [
+    {"name": "example-publisher", "sha256": "<paste the sha256 printed by new-key>", "plan": "trial"}
+  ]
+}
