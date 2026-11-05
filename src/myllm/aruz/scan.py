@@ -27,6 +27,7 @@ from myllm.aruz.meters import FEET, METERS, Meter
 from myllm.aruz.phonology import Reading, Syl, add_izafe, lengthen_final, split_words, word_readings
 
 BEAM = 300
+DEFAULT_LEXICON = "data/processed/aruz_lexicon.json"
 COST = {
     "hazf_hamze": 0.05, "izafe": 0.5, "lengthen": 0.35, "vav_va": 0.4, "vav_long": 0.35,
     "initial_long": 0.25, "taskin": 0.45, "taskin_final": 0.15, "ebdal": 0.6, "qalb": 0.4,
@@ -345,11 +346,14 @@ def format_result(r: ScanResult) -> str:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="تقطیع و تشخیص وزن")
     p.add_argument("hemistichs", nargs="+", help="one hemistich, or two for a couplet")
-    p.add_argument("--lexicon", help="learned lexicon JSON (myllm.aruz.lexicon)")
+    p.add_argument("--lexicon", default=DEFAULT_LEXICON,
+                   help="learned lexicon JSON (myllm.aruz.lexicon); used automatically if present")
+    p.add_argument("--no-lexicon", action="store_true", help="rules only")
     a = p.parse_args(argv)
     from myllm.aruz.lexicon import load_lexicon
 
-    sc = Scanner(load_lexicon(a.lexicon) if a.lexicon else None)
+    # held-out couplet accuracy: rules only 81.4% -> with lexicon 91.9% (docs/product/aruz.md)
+    sc = Scanner(None if a.no_lexicon else load_lexicon(a.lexicon))
     if len(a.hemistichs) >= 2:
         for r in sc.scan_couplet(a.hemistichs[0], a.hemistichs[1]):
             print(format_result(r), end="\n\n")
