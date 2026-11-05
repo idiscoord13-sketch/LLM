@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import random
 import re
 import time
 import urllib.parse
@@ -35,7 +34,8 @@ HELP = (
     "🔎 بررسی تقطیع خودت: /check در خط اول، مصراع در خط دوم، نشانه‌هایت در خط سوم (مثل: – U – –)\n"
     "📝 تمرین: /tamrin یک سؤال می‌دهد؛ جواب را با شماره‌ی گزینه (۱ تا ۴) بفرست.\n"
     "🎨 آرایه‌ها: /arayeh در خط اول و بیت در دو خط بعد (جناس، تکرار، واج‌آرایی، تضاد، تناسب، تلمیح، تشبیه).\n"
-    "📚 تاریخ ادبیات: /tarikh یک سؤال تستی (آثار، قرن، سبک، «این بیت از کیست؟»).\n\n"
+    "📚 تاریخ ادبیات: /tarikh یک سؤال تستی (آثار، قرن، سبک، «این بیت از کیست؟»).\n"
+    "📊 کارنامه: /karname نقاط ضعفت را می‌گوید؛ سؤال‌های بعدی روی همان‌ها تمرکز می‌کنند.\n\n"
     "⚠️ نسخه‌ی آزمایشی است؛ برای بیت‌های عربی، نیمایی و سپید وزن عروضی معنا ندارد یا ممکن است اشتباه کنم."
 )
 MAX_LINES = 12
@@ -49,7 +49,8 @@ _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "0123456789"
 class AruzService:
     def __init__(self, lexicon_path: str | None = None, exercises_path: str | None = None,
                  scanner: Scanner | None = None, seed: int = 0, ensemble_path: str | None = None,
-                 classifier_path: str | None = None, history_path: str | None = None):
+                 classifier_path: str | None = None, history_path: str | None = None,
+                 profiles_path: str | None = None):
         if scanner is None:
             if ensemble_path or classifier_path:
                 from myllm.aruz.engine import build_scanner
@@ -67,14 +68,19 @@ class AruzService:
         self.bank = bank(exercises_path)
         self.history = bank(history_path)
         self.pending: dict = {}  # chat id -> question waiting for an answer
-        self.rng = random.Random(seed)
+        from myllm.adab.tutor import Tutor
+
+        self.tutor = Tutor(seed, profiles_path)  # adaptive question choice + report card (/karname)
 
     def handle_text(self, text: str, chat_id=None) -> str:
         text = (text or "").strip()
         if not text or text.startswith("/start") or text.startswith("/help"):
             return HELP
         if text.startswith("/check"):
-            return self._check(text[len("/check"):].strip())
+            return self._check(text[len("/check"):].strip(), chat_id)
+        if text.startswith("/karname"):
+            self.stats["karname"] += 1
+            return self.tutor.report(chat_id)
         if text.startswith("/tamrin"):
             return self._quiz(chat_id)
         if text.startswith("/tarikh"):
@@ -106,14 +112,17 @@ class AruzService:
         return format_result(r) + "\n\n(برای دقت بیشتر، هر دو مصراع بیت را بفرست.)"
 
 
-    def _check(self, body: str) -> str:
+    def _check(self, body: str, chat_id=None) -> str:
         from myllm.aruz.diagnose import diagnose, format_diagnosis, parse_signs
 
         lines = [ln for ln in body.splitlines() if ln.strip()]
         if len(lines) < 2 or not parse_signs(lines[-1]):
             return ("برای بررسی تقطیع این‌طور بفرست:\n/check\nبشنو این نی چون شکایت می‌کند\n– U – – – U – – – U –")
         self.stats["check"] += 1
-        return format_diagnosis(diagnose(self.scanner, lines[0], lines[-1]))
+        d = diagnose(self.scanner, lines[0], lines[-1])
+        if d.expected:
+            self.tutor.record_check(chat_id, d)
+        return format_diagnosis(d)
 
     def _devices(self, body: str) -> str:
         from myllm.adab.devices import find_devices, format_devices
@@ -129,7 +138,7 @@ class AruzService:
         if not bank:
             return ("بانک سؤال تاریخ ادبیات هنوز ساخته نشده (python -m myllm.adab.history build)." if history
                     else "بانک تمرین هنوز ساخته نشده (python -m myllm.aruz.exercises).")
-        q = self.rng.choice(bank)
+        q = self.tutor.pick(chat_id, bank)
         self.pending[chat_id] = q
         self.stats["tarikh" if history else "quiz"] += 1
         opts = "\n".join(f"{i + 1}) {o}" for i, o in enumerate(q.options))
@@ -140,6 +149,7 @@ class AruzService:
         q = self.pending.pop(chat_id)
         ok = choice == q.answer
         self.stats["quiz_correct" if ok else "quiz_wrong"] += 1
+        self.tutor.record_answer(chat_id, q, ok)
         head = "✅ درست است!" if ok else f"❌ نه؛ جواب درست گزینه‌ی {q.answer + 1} است: {q.options[q.answer]}"
         nxt = "/tarikh" if q.kind in HISTORY_KINDS else "/tamrin"
         return head + (f"\n{q.explanation}" if q.explanation else "") + f"\n\nسؤال بعدی: {nxt}"
@@ -171,10 +181,10 @@ def _call(base: str, token: str, method: str, params: dict, timeout: float = 70)
 
 def poll(token: str, platform: str = "bale", lexicon: str | None = None, exercises: str | None = None,
          ensemble: str | None = None, classifier: str | None = None,
-         history: str | None = None) -> None:  # pragma: no cover - network
+         history: str | None = None, profiles: str | None = None) -> None:  # pragma: no cover - network
     base = API_BASE[platform]
     service = AruzService(lexicon, exercises, ensemble_path=ensemble, classifier_path=classifier,
-                          history_path=history)
+                          history_path=history, profiles_path=profiles)
     offset = 0
     print(f"aruz bot running on {platform}…")
     while True:
@@ -201,11 +211,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ensemble", default="data/processed/aruz_ensemble.json")
     p.add_argument("--classifier", default="out/aruz/classifier.pt")
     p.add_argument("--history", default="data/processed/history_bank.jsonl")
+    p.add_argument("--profiles", default=None,
+                   help="JSON file for learner profiles (salted user hashes + counts only); default: memory")
     p.add_argument("--repl", action="store_true", help="local console instead of a bot (no token needed)")
     a = p.parse_args(argv)
     if a.repl:
         service = AruzService(a.lexicon, a.exercises, ensemble_path=a.ensemble, classifier_path=a.classifier,
-                              history_path=a.history)
+                              history_path=a.history, profiles_path=a.profiles)
         print(HELP)
         buf: list[str] = []
         while True:
@@ -223,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     token = os.environ.get("ARUZ_BOT_TOKEN")
     if not token:
         raise SystemExit("set ARUZ_BOT_TOKEN (from @BotFather on Telegram or the Bale bot builder)")
-    poll(token, a.platform, a.lexicon, a.exercises, a.ensemble, a.classifier, a.history)
+    poll(token, a.platform, a.lexicon, a.exercises, a.ensemble, a.classifier, a.history, a.profiles)
     return 0
 
 

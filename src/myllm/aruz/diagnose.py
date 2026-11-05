@@ -42,6 +42,24 @@ class Mistake:
     expected: str
     got: str
     reason: str
+    rule: str = ""  # machine-readable rule id (see RULES), for the learner profile
+
+
+# rule id -> (school-book name, one-line tip) — used by the tutor's report card (/karname)
+RULES = {
+    "last_syllable": ("هجای پایانی مصراع", "هجای آخر هر مصراع همیشه بلند (–) حساب می‌شود."),
+    "hazf_hamze": ("حذف همزه", "همزه‌ی آغاز واژه بعد از صامت می‌تواند حذف شود و صامت به هجای بعد بچسبد."),
+    "overlong": ("هجای کشیده", "مصوت بلند + صامت، یا مصوت کوتاه + دو صامت = کشیده = «– U»."),
+    "noon_after_long": ("«ن» پس از مصوت بلند", "«ن» ساکن بعد از مصوت بلند در تقطیع حساب نمی‌شود."),
+    "lengthening": ("بلندخوانی (اختیار شاعری)", "مصوت کوتاه پایان واژه یا کسره‌ی اضافه را شاعر می‌تواند بلند بخواند."),
+    "izafe": ("کسره‌ی اضافه", "کسره‌ی اضافه خودش یک هجای کوتاه (U) می‌سازد."),
+    "vav_maduleh": ("واو معدوله", "«و» در «خوا/خوی» خوانده نمی‌شود."),
+    "silent_he": ("«ه» غیرملفوظ", "«ه» پایانیِ «خانه، نامه، …» خوانده نمی‌شود؛ هجا کوتاه است."),
+    "short_cv": ("هجای کوتاه (CV)", "صامت + مصوت کوتاه = هجای کوتاه (U)."),
+    "long_vowel": ("مصوت بلند", "هجایی که مصوت بلند (ا، و، ی) دارد بلند (–) است."),
+    "closed_cvc": ("هجای بسته (CVC)", "صامت + مصوت کوتاه + صامت = هجای بلند (–)."),
+    "extra_sign": ("شمار هجاها", "اول واژه‌ها را هجا به هجا جدا کن تا هجای اضافه نسازی."),
+}
 
 
 @dataclass
@@ -86,37 +104,39 @@ def _align(a: str, b: str) -> list[tuple[int | None, int | None]]:
 _IZAFE = re.compile("ِ$")
 
 
-def _reason(scanner: Scanner, r: ScanResult, syl_idx: int, unit_in_syl: int, expected: str, got: str) -> str:
+def _reason(scanner: Scanner, r: ScanResult, syl_idx: int, unit_in_syl: int, expected: str,
+            got: str) -> tuple[str, str]:
+    """-> (rule id, explanation) for one disagreeing sign."""
     syl = scanner._last_hyp.syls[syl_idx]
     text = r.syllables[syl_idx]
     last = syl_idx == len(r.syllables) - 1
     word = next((w for w, a, b in scanner._last_hyp.words if a <= syl_idx < b), "")
     notes = {k for k, w in scanner._last_hyp.notes if w == word}
     if last:
-        return "هجای آخر مصراع همیشه بلند (–) حساب می‌شود، هر شکلی که داشته باشد."
+        return "last_syllable", "هجای آخر مصراع همیشه بلند (–) حساب می‌شود، هر شکلی که داشته باشد."
     if "hazf_hamze" in notes:
-        return f"در «{word}» همزه حذف شده (حذف همزه): صامتِ پیش از آن به هجای بعد می‌چسبد و هجاها جابه‌جا می‌شوند."
+        return "hazf_hamze", f"در «{word}» همزه حذف شده (حذف همزه): صامتِ پیش از آن به هجای بعد می‌چسبد و هجاها جابه‌جا می‌شوند."
     if syl.weight == "-u":
-        return (f"«{text}» هجای کشیده است (مصوت بلند + صامت، یا مصوت کوتاه + دو صامت) و در تقطیع "
+        return "overlong", (f"«{text}» هجای کشیده است (مصوت بلند + صامت، یا مصوت کوتاه + دو صامت) و در تقطیع "
                 "«– U» نوشته می‌شود: یک بلند و یک کوتاه.")
     if syl.long and syl.coda == ("ن",):
-        return (f"«{text}» مصوت بلند دارد، پس بلند (–) است؛ و «ن» بعد از مصوت بلند در تقطیع حساب نمی‌شود، "
+        return "noon_after_long", (f"«{text}» مصوت بلند دارد، پس بلند (–) است؛ و «ن» بعد از مصوت بلند در تقطیع حساب نمی‌شود، "
                 "پس کشیده («– U») هم نیست.")
     if ("lengthen" in notes or "vav_long" in notes) and syl.long:
         if text.endswith("ِ"):
-            return f"کسره‌ی اضافه‌ی بعد از «{word}» اینجا به اختیار شاعری بلند خوانده می‌شود (–)."
-        return f"اینجا مصوت کوتاه پایانی «{word}» به اختیار شاعری بلند خوانده می‌شود (–)."
+            return "lengthening", f"کسره‌ی اضافه‌ی بعد از «{word}» اینجا به اختیار شاعری بلند خوانده می‌شود (–)."
+        return "lengthening", f"اینجا مصوت کوتاه پایانی «{word}» به اختیار شاعری بلند خوانده می‌شود (–)."
     if _IZAFE.search(text) or text.endswith("یِ"):
-        return f"کسره‌ی اضافه بعد از «{word}» خودش یک هجای کوتاه (U) می‌سازد."
+        return "izafe", f"کسره‌ی اضافه بعد از «{word}» خودش یک هجای کوتاه (U) می‌سازد."
     if "خوا" in word or "خوی" in word:
-        return f"«و» در «{word}» معدوله است و خوانده نمی‌شود («خا»)."
+        return "vav_maduleh", f"«و» در «{word}» معدوله است و خوانده نمی‌شود («خا»)."
     if not syl.long and not syl.coda:
         if text.endswith("ه"):
-            return f"«ه» پایانی در «{word}» خوانده نمی‌شود و فقط مصوت کوتاه را نشان می‌دهد؛ پس «{text}» کوتاه (U) است."
-        return f"«{text}» یک صامت + مصوت کوتاه است (CV) ← هجای کوتاه (U)."
+            return "silent_he", f"«ه» پایانی در «{word}» خوانده نمی‌شود و فقط مصوت کوتاه را نشان می‌دهد؛ پس «{text}» کوتاه (U) است."
+        return "short_cv", f"«{text}» یک صامت + مصوت کوتاه است (CV) ← هجای کوتاه (U)."
     if syl.long:
-        return f"«{text}» مصوت بلند دارد (ا، و، ی) ← هجای بلند (–)."
-    return f"«{text}» صامت + مصوت کوتاه + صامت است (CVC) ← هجای بلند (–)."
+        return "long_vowel", f"«{text}» مصوت بلند دارد (ا، و، ی) ← هجای بلند (–)."
+    return "closed_cvc", f"«{text}» صامت + مصوت کوتاه + صامت است (CVC) ← هجای بلند (–)."
 
 
 def diagnose(scanner: Scanner, text: str, student_signs: str) -> Diagnosis:
@@ -133,15 +153,16 @@ def diagnose(scanner: Scanner, text: str, student_signs: str) -> Diagnosis:
             d.correct += 1
             continue
         if i is None:
-            d.mistakes.append(Mistake(j + 1, "", "", student[j], "این نشانه اضافه است: تعداد هجاهای شما از تقطیع درست بیشتر شده."))
+            d.mistakes.append(Mistake(j + 1, "", "", student[j],
+                                      "این نشانه اضافه است: تعداد هجاهای شما از تقطیع درست بیشتر شده.", "extra_sign"))
             continue
         s_idx = owner[i]
         unit_in_syl = i - owner.index(s_idx)
         got = student[j] if j is not None else ""
-        reason = _reason(scanner, r, s_idx, unit_in_syl, units[i], got)
+        rule, reason = _reason(scanner, r, s_idx, unit_in_syl, units[i], got)
         if j is None:
             reason = "یک نشانه جا افتاده. " + reason
-        d.mistakes.append(Mistake(i + 1, r.syllables[s_idx], units[i], got, reason))
+        d.mistakes.append(Mistake(i + 1, r.syllables[s_idx], units[i], got, reason, rule))
     return d
 
 

@@ -154,3 +154,77 @@ def test_bot_tarikh(tmp_path):
     assert "حافظ" in out and "قرن هشتم" in out
     reply = s.handle_text("۱۲۳۴"[q.answer], chat_id=1)  # answers may come in Persian digits
     assert reply.startswith("✅") and "/tarikh" in reply
+
+
+# --- adaptive tutor -----------------------------------------------------------------------------------
+def _toy_bank():
+    from myllm.aruz.exercises import Question
+
+    bank = []
+    for kind in ("meter", "century"):
+        for k in range(6):
+            bank.append(Question(kind, f"{kind} سؤال {k}", [], ["الف", "ب", "ج", "د"], 0, "الف"))
+    return bank
+
+
+def test_tutor_focuses_on_weak_skill_and_reviews_mistakes(tmp_path):
+    from myllm.adab.tutor import Tutor, qkey
+
+    bank = _toy_bank()
+    t = Tutor(seed=1, path=tmp_path / "profiles.json", salt="s")
+    for q in bank:  # meter always wrong, century always right
+        t.record_answer("u", q, correct=q.kind == "century")
+    picks = [t.pick("u", bank).kind for _ in range(40)]
+    assert picks.count("meter") > picks.count("century")  # weak skill first (plus reviews of wrong ones)
+    wrong = next(q for q in bank if q.kind == "meter")
+    t2 = Tutor(seed=1, salt="s")
+    t2.record_answer("v", wrong, correct=False)
+    seen = [qkey(t2.pick("v", bank)) for _ in range(4)]
+    assert qkey(wrong) in seen  # comes back after 3 questions
+    # stored under a salted hash, never the raw user id
+    raw = (tmp_path / "profiles.json").read_text(encoding="utf-8")
+    assert '"u"' not in raw and Tutor(path=tmp_path / "profiles.json", salt="s").profile("u").stats["meter"] == [6, 0]
+
+
+def test_tutor_report_card():
+    from myllm.adab.tutor import Tutor
+    from myllm.aruz.diagnose import Diagnosis, Mistake
+
+    t = Tutor(salt="")
+    assert "/tamrin" in t.report("x")
+    for q in _toy_bank():
+        t.record_answer("x", q, correct=q.kind == "century")
+    d = Diagnosis("مصراع", "-u--", "--u-", None, [Mistake(2, "نی", "u", "-", "…", "noon_after_long")], correct=2)
+    t.record_check("x", d)
+    card = t.report("x")
+    assert "تشخیص وزن" in card and "بیشترین نیاز به تمرین" in card and "«ن» پس از مصوت بلند" in card
+
+
+def test_bot_karname():
+    from myllm.aruz.bot import AruzService
+
+    s = AruzService(None)
+    assert "/tamrin" in s.handle_text("/karname", chat_id=5)
+
+
+# --- printable exam -----------------------------------------------------------------------------------
+def test_exam_versions_share_questions_and_keys_match():
+    from myllm.adab.exam import build_exam
+    from myllm.adab.history import build
+
+    bank = build(80, seed=5)
+    doc, sets = build_exam(bank, "history:12", versions=2, seed=9, title="آزمون <تست>", minutes=30)
+    assert doc.startswith("<!doctype html>") and 'dir="rtl"' in doc and "&lt;تست&gt;" in doc
+    a, b = sets
+
+    def key(q):  # chronology questions share a prompt, so the options are part of the identity
+        return q.prompt, tuple(q.verse), frozenset(q.options)
+
+    assert {key(q) for q in a} == {key(q) for q in b}
+    twins = {key(q): q for q in a}
+    for q in b:  # same correct option text after shuffling
+        twin = twins[key(q)]
+        assert q.options[q.answer] == twin.options[twin.answer]
+    assert doc.count("پاسخ‌نامه") == 2 and "۳۰ دقیقه" in doc
+    with pytest.raises(ValueError):  # the history bank has no metre questions
+        build_exam(bank, "meter:3")
