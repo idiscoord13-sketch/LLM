@@ -283,19 +283,41 @@ def find_repetition(words: list[Word], radif: set[str]) -> list[Device]:
 
 
 # --- واج‌آرایی --------------------------------------------------------------------------------------------
-def find_alliteration(words: list[Word], min_count: int = 5, ratio: float = 2.2) -> list[Device]:
-    letters = "".join(w.plain for w in words)
+_AFFIX_PREFIXES = ("همی", "می")
+_AFFIX_SUFFIXES = ("هایش", "هایم", "های", "ها", "ایم", "اید", "اند", "ام", "یم", "ید", "ند", "م", "ت", "ش")
+
+
+def _core(plain: str) -> str:
+    """The lexical part of a word for واج‌آرایی: «می‌دیدمش» -> «دید», so «م» of endings is not counted."""
+    for p in _AFFIX_PREFIXES:
+        if plain.startswith(p) and len(plain) - len(p) >= 3:
+            plain = plain[len(p) :]
+            break
+    for s in _AFFIX_SUFFIXES:
+        if plain.endswith(s) and len(plain) - len(s) >= 2:
+            return plain[: -len(s)]
+    return plain
+
+
+def find_alliteration(words: list[Word], min_count: int = 5, ratio: float = 2.5, min_words: int = 3) -> list[Device]:
+    """A consonant repeated in the *content* words (function words and affixes do not count), at least
+    ``min_count`` times, ``ratio`` × its usual frequency, spread over ``min_words`` different words."""
+    cores = [(w, _core(w.plain)) for w in words if w.content]
+    letters = "".join(c for _, c in cores)
     total = len(letters)
-    if total < 20:
+    if total < 15:
         return []
     c = Counter(ch for ch in letters if ch in LETTER_FREQ)
     out = []
     for ch, n in c.most_common(3):
         expected = LETTER_FREQ[ch] * total
-        if n >= min_count and n >= ratio * expected:
-            hits = [w for w in words if ch in w.plain]
-            out.append(Device("واج‌آرایی", hits, f"صامت «{ch}» {n} بار آمده (حدود {n / expected:.1f} برابر حالت عادی) "
-                              "و موسیقی درونی ساخته است.", extra={"letter": ch, "count": n}))
+        hits = [w for w, core in cores if ch in core]
+        if n >= min_count and n >= ratio * expected and len({w.plain for w in hits}) >= min_words:
+            # manual review: about 2/3 of these are clear-cut, so only strong cases are stated without «احتمالی»
+            strong = n >= 7 and n >= 3.5 * expected
+            out.append(Device("واج‌آرایی", hits, f"صامت «{ch}» {n} بار در واژه‌های اصلی بیت آمده (حدود {n / expected:.1f} "
+                              "برابر حالت عادی) و موسیقی درونی ساخته است.", "بالا" if strong else "متوسط",
+                              {"letter": ch, "count": n}))
     return out
 
 
@@ -375,8 +397,8 @@ def find_simile(words: list[Word]) -> list[Device]:
         prev = words[k - 1].plain if k and words[k - 1].misra == w.misra else ""
         if marker == "مانند" and (last_in_misra or prev in ("در", "وا")):
             continue  # «درمانند/در مانند» = they remain (verb)
-        if marker == "مثل" and prev == "به":
-            continue  # «به مَثَل» = for example
+        if marker == "مثل" and (prev in ("به", "بی") or last_in_misra):
+            continue  # «به مَثَل» = for example; «بی‌مثل» = matchless
         tail = words[nxt] if nxt < len(words) and words[nxt].misra == w.misra else None
         target = f"؛ مشبه‌به احتمالاً «{tail.plain}» است" if tail is not None and tail.content else ""
         out.append(Device("تشبیه", [w] + ([tail] if tail is not None else []),
