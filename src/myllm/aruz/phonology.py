@@ -284,6 +284,27 @@ def lengthen_final(r: Reading, cost: float = 0.35) -> Reading | None:
     return Reading(tuple(syls), r.cost + cost, r.glottal_start, r.tags + ("lengthen",))
 
 
+# Vowel-less enclitics written after a ZWNJ belong to the previous syllable, not to a new word:
+# «ایوانی‌ست» = ey-vā-nīst, «بی‌خبر‌م» = bī-kha-ba-ram, «گفت‌ش» = gof-taš.
+_BOUND_ENCLITICS = {"ست", "م", "ت", "ش", "ند", "یم", "ید"}
+
+
+def _strip_marks(s: str) -> str:
+    return "".join(ch for ch in s if ch not in MARKS)
+
+
 def split_words(verse: str) -> list[list[str]]:
     """Verse -> words, each a list of ZWNJ-separated parts (می‌رود -> ['می', 'رود'])."""
-    return [[p for p in w.split(ZWNJ) if p] for w in normalize_verse(verse).split(" ") if w.strip(ZWNJ)]
+    words = []
+    for w in normalize_verse(verse).split(" "):
+        parts: list[str] = []
+        for p in w.split(ZWNJ):
+            if not p:
+                continue
+            if parts and _strip_marks(p) in _BOUND_ENCLITICS:
+                parts[-1] += p
+            else:
+                parts.append(p)
+        if parts:
+            words.append(parts)
+    return words

@@ -142,8 +142,17 @@ def test_bot_service():
     assert "عروض‌یار" in s.handle_text("/start")
     out = s.handle_text("بشنو این نی چون شکایت می‌کند\nاز جدایی‌ها حکایت می‌کند")
     assert "رمل مسدس محذوف" in out and "قافیه" in out
-    assert "حداکثر دو مصراع" in s.handle_text("الف\nب\nج")
-    assert s.stats["requests"] == 1
+    poem = s.handle_text("بشنو این نی چون شکایت می‌کند\nاز جدایی‌ها حکایت می‌کند\n"
+                         "کز نیستان تا مرا ببریده‌اند\nدر نفیرم مرد و زن نالیده‌اند")
+    assert "وزن کل شعر" in poem and "رمل مسدس محذوف" in poem
+    assert "حداکثر" in s.handle_text("\n".join(["الف"] * 13))
+    assert s.stats["requests"] == 2 and s.stats["poem"] == 1
+
+
+def test_scan_poem_votes_and_survives_odd_line(scanner):
+    lines = ["بشنو این نی چون شکایت می‌کند", "از جدایی‌ها حکایت می‌کند", "سلام"]
+    rs = scanner.scan_poem(lines)
+    assert rs[0].meter.name == "رمل مسدس محذوف" and len(rs) == 3
 
 
 # ---------------- ganjoor + lexicon

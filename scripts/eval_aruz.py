@@ -52,6 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--holdout", type=float, default=0.2)
     p.add_argument("--per-meter", type=int, default=60)
     p.add_argument("--couplets", action="store_true", help="evaluate couplets (both hemistichs jointly)")
+    p.add_argument("--poem-couplets", type=int, default=0,
+                   help="evaluate whole-poem scanning using the first N couplets of each poem (e.g. 3)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", default="out/aruz/eval.json")
     p.add_argument("--rhyme", action="store_true", help="evaluate rhyme+radif on ghazals vs Ganjoor RhymeLetters")
@@ -61,7 +63,12 @@ def main(argv: list[str] | None = None) -> int:
 
     rows = [h for h in load_corpus(Path(a.root)) if is_holdout(h.poem_url, a.holdout)]
     rng = random.Random(a.seed)
-    if a.couplets:
+    if a.poem_couplets:
+        poems = defaultdict(list)
+        for h in rows:
+            poems[h.poem_url].append(h)
+        units = [tuple(hs[: 2 * a.poem_couplets]) for hs in poems.values() if len(hs) >= 2 * a.poem_couplets]
+    elif a.couplets:
         pairs = defaultdict(dict)
         for h in rows:
             pairs[(h.poem_url, h.couplet)][h.position] = h
@@ -82,7 +89,12 @@ def main(argv: list[str] | None = None) -> int:
     results, t0 = [], time.time()
     for u in sample:
         gold = meter_for_rhythm(u[0].rhythm)
-        r = scanner.scan_couplet(u[0].text, u[1].text)[0] if a.couplets else scanner.scan(u[0].text)
+        if a.poem_couplets:
+            r = scanner.scan_poem([x.text for x in u])[0]
+        elif a.couplets:
+            r = scanner.scan_couplet(u[0].text, u[1].text)[0]
+        else:
+            r = scanner.scan(u[0].text)
         results.append({"gold": gold.name, "pred": r.meter.name if r.meter else None, "ok": same_meter(gold, r.meter),
                         "conf": r.confidence, "poet": u[0].poet, "text": " / ".join(x.text for x in u)})
     elapsed = time.time() - t0
@@ -103,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     confusion = Counter((r["gold"], r["pred"]) for r in results if not r["ok"]).most_common(8)
 
     report = {
-        "unit": "couplet" if a.couplets else "hemistich", "n": len(results), "lexicon": bool(a.lexicon),
+        "unit": f"poem({a.poem_couplets} couplets)" if a.poem_couplets else ("couplet" if a.couplets else "hemistich"), "n": len(results), "lexicon": bool(a.lexicon),
         "micro_accuracy": [round(x, 4) for x in micro], "macro_accuracy_over_meters": round(macro, 4),
         "stratified_majority_baseline": round(majority, 4), "seconds_per_item": round(elapsed / max(1, len(results)), 3),
         "by_confidence": {k: {"n": len(v), "acc": round(sum(v) / len(v), 4) if v else None} for k, v in buckets.items()},

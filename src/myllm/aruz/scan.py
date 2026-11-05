@@ -252,17 +252,31 @@ class Scanner:
         return self._result(text, best)
 
     def scan_couplet(self, first: str, second: str) -> tuple[ScanResult, ScanResult]:
-        b1, _ = self.score_meters(first)
-        b2, _ = self.score_meters(second)
-        joint = {p: (b1[p][0] + b2[p][0], p) for p in b1.keys() & b2.keys()}
-        if not joint:
-            return self._result(first, b1), self._result(second, b2)
-        order = sorted(joint.values())
-        pick = order[0][1]
-        ranking = [(_meter_by_pattern(self.meters, p).name, round(c, 3)) for c, p in order[:5]]
-        r1 = self._result(first, {pick: b1[pick]}, ranking, order)
-        r2 = self._result(second, {pick: b2[pick]}, ranking, order)
+        r1, r2 = self.scan_poem([first, second])
         return r1, r2
+
+    MISSING_PENALTY = 2.5  # a hemistich that cannot be read in a metre costs this much (instead of a veto)
+
+    def scan_poem(self, hemistichs: list[str]) -> list[ScanResult]:
+        """One metre for the whole poem: every hemistich votes with its cost for each metre.
+
+        A ghazal or masnavi keeps a single metre, so pooling the evidence of several couplets
+        removes most single-line ambiguities. A line that fits no reading of a metre adds a
+        fixed penalty rather than ruling that metre out (one odd line must not sink the poem).
+        """
+        bests = [self.score_meters(h)[0] for h in hemistichs]
+        patterns = set().union(*[b.keys() for b in bests]) if bests else set()
+        if not patterns:
+            return [self._result(h, b) for h, b in zip(hemistichs, bests)]
+        joint = sorted(
+            (sum(b[p][0] if p in b else self.MISSING_PENALTY for b in bests), p) for p in patterns
+        )
+        pick = joint[0][1]
+        ranking = [(_meter_by_pattern(self.meters, p).name, round(c, 3)) for c, p in joint[:5]]
+        out = []
+        for h, b in zip(hemistichs, bests):
+            out.append(self._result(h, {pick: b[pick]} if pick in b else b, ranking, joint))
+        return out
 
     def _result(self, text, best, ranking=None, order=None) -> ScanResult:
         if not best:

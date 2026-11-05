@@ -26,12 +26,14 @@ from myllm.aruz.scan import Scanner, format_result
 API_BASE = {"bale": "https://tapi.bale.ai", "telegram": "https://api.telegram.org"}
 HELP = (
     "سلام! من «عروض‌یار» هستم.\n"
-    "یک مصراع یا یک بیت (دو مصراع در دو خط) بفرست تا وزن، تقطیع هجایی، ارکان، اختیارات شاعری و قافیه‌اش را بگویم.\n\n"
+    "یک مصراع یا یک بیت (دو مصراع در دو خط) بفرست تا وزن، تقطیع هجایی، ارکان، اختیارات شاعری و قافیه‌اش را بگویم.\n"
+    "اگر چند بیت از یک شعر (تا ۶ بیت) بفرستی، دقت تشخیص وزن خیلی بیشتر می‌شود.\n\n"
     "مثال:\n"
     "بشنو این نی چون شکایت می‌کند\n"
     "از جدایی‌ها حکایت می‌کند\n\n"
     "⚠️ نسخه‌ی آزمایشی است؛ برای بیت‌های عربی، نیمایی و سپید وزن عروضی معنا ندارد یا ممکن است اشتباه کنم."
 )
+MAX_LINES = 12
 _SPLIT = re.compile(r"\s*(?:\n+|\s/\s|\*\*|\s\|\s)\s*")
 
 
@@ -47,10 +49,12 @@ class AruzService:
         if text.startswith("/vazn"):
             text = text[len("/vazn"):].strip()
         parts = [p for p in _SPLIT.split(text) if p.strip()]
-        if len(parts) > 2 or len(text) > 400:
+        if len(parts) > MAX_LINES or len(text) > 2000:
             self.stats["too_long"] += 1
-            return "لطفاً فقط یک بیت (حداکثر دو مصراع) بفرست."
+            return f"لطفاً حداکثر {MAX_LINES // 2} بیت ({MAX_LINES} مصراع) بفرست."
         self.stats["requests"] += 1
+        if len(parts) > 2:
+            return self._poem(parts)
         if len(parts) == 2:
             r1, r2 = self.scanner.scan_couplet(parts[0], parts[1])
             rhyme = find_rhyme(parts)
@@ -62,6 +66,24 @@ class AruzService:
         r = self.scanner.scan(parts[0])
         self.stats["found" if r.ok else "not_found"] += 1
         return format_result(r) + "\n\n(برای دقت بیشتر، هر دو مصراع بیت را بفرست.)"
+
+
+    def _poem(self, parts: list[str]) -> str:
+        """Several couplets of one poem: one metre for all (much more reliable than one couplet)."""
+        results = self.scanner.scan_poem(parts)
+        first = results[0]
+        self.stats["poem"] += 1
+        if not first.ok:
+            return "وزنی پیدا نشد (ممکن است شعر نیمایی یا سپید باشد)."
+        level = "بالا" if first.confidence >= 0.7 else "متوسط" if first.confidence >= 0.4 else "پایین"
+        lines = [f"وزن کل شعر ({len(parts)} مصراع): {first.meter.feet_label()} — {first.meter.name}", f"اطمینان: {level}", ""]
+        lines.append(format_result(results[0]))
+        if len(results) > 1:
+            lines += ["", format_result(results[1])]
+        rhyme = find_rhyme([p for k, p in enumerate(parts) if k < 2 or k % 2 == 1])
+        if rhyme.ok or rhyme.radif:
+            lines += ["", format_rhyme(rhyme)]
+        return "\n".join(lines)
 
 
 def _call(base: str, token: str, method: str, params: dict, timeout: float = 70) -> dict:
