@@ -33,7 +33,8 @@ HELP = (
     "بشنو این نی چون شکایت می‌کند\n"
     "از جدایی‌ها حکایت می‌کند\n\n"
     "🔎 بررسی تقطیع خودت: /check در خط اول، مصراع در خط دوم، نشانه‌هایت در خط سوم (مثل: – U – –)\n"
-    "📝 تمرین: /tamrin یک سؤال می‌دهد؛ جواب را با شماره‌ی گزینه (۱ تا ۴) بفرست.\n\n"
+    "📝 تمرین: /tamrin یک سؤال می‌دهد؛ جواب را با شماره‌ی گزینه (۱ تا ۴) بفرست.\n"
+    "🎨 آرایه‌ها: /arayeh در خط اول و بیت در دو خط بعد (جناس، تکرار، واج‌آرایی، تضاد، تناسب، تلمیح، تشبیه).\n\n"
     "⚠️ نسخه‌ی آزمایشی است؛ برای بیت‌های عربی، نیمایی و سپید وزن عروضی معنا ندارد یا ممکن است اشتباه کنم."
 )
 MAX_LINES = 12
@@ -70,6 +71,8 @@ class AruzService:
             return self._check(text[len("/check"):].strip())
         if text.startswith("/tamrin"):
             return self._quiz(chat_id)
+        if text.startswith("/arayeh"):
+            return self._devices(text[len("/arayeh"):].strip())
         answer = text.translate(_DIGITS).strip()
         if chat_id in self.pending and answer in {"1", "2", "3", "4"}:
             return self._grade(chat_id, int(answer) - 1)
@@ -103,6 +106,15 @@ class AruzService:
             return ("برای بررسی تقطیع این‌طور بفرست:\n/check\nبشنو این نی چون شکایت می‌کند\n– U – – – U – – – U –")
         self.stats["check"] += 1
         return format_diagnosis(diagnose(self.scanner, lines[0], lines[-1]))
+
+    def _devices(self, body: str) -> str:
+        from myllm.adab.devices import find_devices, format_devices
+
+        parts = [p for p in _SPLIT.split(body) if p.strip()]
+        if not parts or len(parts) > 2:
+            return "برای بررسی آرایه‌ها این‌طور بفرست:\n/arayeh\nمصراع اول\nمصراع دوم"
+        self.stats["arayeh"] += 1
+        return format_devices(find_devices(parts))
 
     def _quiz(self, chat_id) -> str:
         if not self.bank:
