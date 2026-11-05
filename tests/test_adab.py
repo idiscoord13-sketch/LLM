@@ -76,3 +76,81 @@ def test_bot_arayeh_command():
     out = s.handle_text("/arayeh\nهر آن که کنج قناعت به گنج دنیا داد\nفروخت یوسف مصری به کمترین ثمنی")
     assert "جناس" in out and "کنج" in out
     assert "/arayeh" in s.handle_text("/arayeh")
+
+
+# --- literary history question bank ------------------------------------------------------------------
+def test_canon_integrity():
+    from myllm.adab.history import CANON, ORDINALS, STYLES, authors_of, century
+
+    assert len({a.name for a in CANON}) == len(CANON)
+    for a in CANON:
+        assert a.style is None or a.style in STYLES
+        if a.death is not None:
+            assert not a.modern and century(a.death) in ORDINALS
+    shared = {w for w, owners in authors_of().items() if len(owners) > 1}
+    assert shared == {"لیلی و مجنون"}  # نظامی and جامی; never asked as «اثر کیست؟»
+
+
+def test_history_questions_are_well_formed():
+    from myllm.adab.history import CANON, authors_of, build
+
+    owners = authors_of()
+    by_name = {a.name: a for a in CANON}
+    bank = build(120, seed=3)
+    assert len(bank) >= 100
+    for q in bank:
+        assert len(q.options) == 4 and len(set(q.options)) == 4
+        assert q.options[q.answer] == q.answer_text
+        if q.kind == "work_author":
+            work = q.prompt.split("«")[1].split("»")[0]
+            assert owners[work] == {q.answer_text}
+        if q.kind == "not_by":
+            author = by_name[q.prompt.removeprefix("کدام اثر از ").removesuffix(" نیست؟")]
+            assert q.answer_text not in author.works
+            assert all(o in author.works for i, o in enumerate(q.options) if i != q.answer)
+
+
+def test_history_facts():
+    import random
+
+    from myllm.adab.history import CANON, q_century, q_title, q_work_author
+
+    hafez = next(a for a in CANON if a.name == "حافظ")
+    saadi = next(a for a in CANON if a.name == "سعدی")
+    rng = random.Random(0)
+    assert q_century(hafez, rng).answer_text == "قرن هشتم"
+    assert q_title(hafez, rng).prompt == "لقب «لسان‌الغیب» از آنِ کیست؟"
+    q = q_work_author(saadi, rng)
+    assert q.answer_text == "سعدی" and ("بوستان" in q.prompt or "گلستان" in q.prompt)
+
+
+def test_verse_filters(tmp_path):
+    import json
+
+    from myllm.adab.history import _persian, doubtful_prefixes
+
+    assert _persian(["دلا بسوز که سوز تو کارها بکند", "نیاز نیم‌شبی دفع صد بلا بکند"])
+    assert not _persian(["أَلا یا أَیُّهَا السّاقی أَدِرْ کَأْساً وَ ناوِلْها"])  # Arabic hemistich
+    (tmp_path / "cats").mkdir()
+    (tmp_path / "cats" / "khajoo.json").write_text(json.dumps(
+        [{"title": "سام نامه - سراینده نامعلوم منسوب به خواجو", "url": "/khajoo/samname"},
+         {"title": "دیوان اشعار", "url": "/khajoo/divan"}], ensure_ascii=False), encoding="utf-8")
+    assert doubtful_prefixes("khajoo", tmp_path) == ["/khajoo/samname/"]
+
+
+def test_bot_tarikh(tmp_path):
+    import json
+    import random
+    from dataclasses import asdict
+
+    from myllm.adab.history import CANON, q_century
+    from myllm.aruz.bot import AruzService
+
+    q = q_century(next(a for a in CANON if a.name == "حافظ"), random.Random(0))
+    path = tmp_path / "history.jsonl"
+    path.write_text(json.dumps(asdict(q), ensure_ascii=False) + "\n", encoding="utf-8")
+    s = AruzService(None, history_path=str(path))
+    out = s.handle_text("/tarikh", chat_id=1)
+    assert "حافظ" in out and "قرن هشتم" in out
+    reply = s.handle_text("۱۲۳۴"[q.answer], chat_id=1)  # answers may come in Persian digits
+    assert reply.startswith("✅") and "/tarikh" in reply
