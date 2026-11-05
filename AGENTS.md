@@ -28,6 +28,7 @@
 - ablation: `uv run python -m myllm.research.ablate --config configs/research/<idea>.yaml`
 - عروض‌یار: `uv run python -m myllm.aruz.scan "<مصراع ۱>" "<مصراع ۲>"`، ارزیابی `uv run python scripts/eval_aruz.py --couplets`
   (داده‌ی گنجور در `data/raw/ganjoor` محلی است و commit نمی‌شود؛ لایسنسش روشن نیست)
+- **کار بعدی برنامه‌ریزی‌شده:** به‌روزرسانی بزرگ عروض‌یار (دقت نزدیک به ۱۰۰٪ + گسترش محصول) — `docs/product/aruz_big_update.md`
 
 ## معماری کد
 - `configs/profiles/*.yaml` = سخت‌افزار (مدل، batch، طول، ۴-بیت)؛ `configs/*.yaml` = recipe. ترتیب: recipe ← profile ← `--set`.
