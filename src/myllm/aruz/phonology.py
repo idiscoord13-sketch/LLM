@@ -153,7 +153,10 @@ def _alternatives(letters, i: int) -> list[tuple[list, float]]:
 
 _INSERT_COST = 0.12
 _CLUSTER_INTERNAL = 0.4
-_CLUSTER_FINAL = 0.1
+_CLUSTER_FINAL = 0.05
+_FINAL_INSERTED_VOWEL = 0.6
+FORCED_VOWEL = "\u200b"  # marker for a vowel given by a haraka (kept out of display text)
+_LONG_VOWEL_FINAL_CLUSTERS = {"ست", "شت", "خت", "فت", "ند", "رد", "زد"}
 
 
 def _syllabify(phonemes: list[tuple]) -> tuple[list[Syl], float] | None:
@@ -175,14 +178,22 @@ def _syllabify(phonemes: list[tuple]) -> tuple[list[Syl], float] | None:
             return None  # vowel hiatus without onset
         v = phonemes[vi]
         if len(coda) == 2:
-            extra += _CLUSTER_FINAL if nxt_v is None else _CLUSTER_INTERNAL
-            if v[0] == "A":
-                extra += 0.25  # long vowel + 2 consonants (داشت، دوست) is rarer than CVCC
+            cluster = coda[0][1] + coda[1][1]
+            if nxt_v is not None:
+                extra += _CLUSTER_INTERNAL
+            elif v[0] == "A":
+                # long vowel + 2 consonants is common only with these clusters: نیست، دوست، ماند، داشت، ساخت، یافت، کارد
+                extra += _CLUSTER_FINAL if cluster in _LONG_VOWEL_FINAL_CLUSTERS else 0.35
+            else:
+                extra += _CLUSTER_FINAL
         letters = [p[1] for p in [onset, v, *coda]]
         if onset[1] == GLOTTAL and v[1] in ("آ", "ا"):
             letters = letters[1:]  # «آ» already shows the glottal onset
-        text = "".join(letters).replace(GLOTTAL, "ا")
+        text = "".join(letters).replace(GLOTTAL, "ا").replace(FORCED_VOWEL, "")
         syls.append(Syl(onset[1], v[0] == "A", tuple(p[1] for p in coda), text))
+    if phonemes[-1] == ("V", ""):
+        # an *unwritten* word-final short vowel is rare (final -e is written ه, izafe is added separately)
+        extra += _FINAL_INSERTED_VOWEL
     return syls, extra
 
 
@@ -222,7 +233,7 @@ def word_readings(word: str, max_readings: int = 48) -> tuple[Reading, ...]:
                         if rule in ("free", "none"):
                             new.append((ph + [it], cc))
                         if rule == "forced":
-                            new.append((ph + [it, ("V", "")], cc))
+                            new.append((ph + [it, ("V", FORCED_VOWEL)], cc))
                         elif rule == "free":
                             new.append((ph + [it, ("V", "")], cc + _INSERT_COST))
                     else:
