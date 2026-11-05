@@ -36,8 +36,27 @@
 - **آفلاین و ارزان:** روی یک لپ‌تاپ معمولی، هر بیت حدود ۰٫۲ ثانیه.
 
 ## ۵. دقت اندازه‌گیری‌شده
+
+### آزمون اصلی: ۱۲ شاعری که موتور هرگز ندیده (نسخه‌ی ۲)
+عطار، سنایی، جامی، عراقی، خواجو، وحشی، شهریار، صائب، رهی، فروغی، هاتف، انوری — هیچ‌کدام در یادگیری قواعد یا واژه‌نامه نبوده‌اند
+(واژه‌نامه فقط از حافظ، سعدی، فردوسی، مولوی، نظامی، خیام و پروین یاد گرفته شده). نمونه‌گیری لایه‌ای: حداکثر ۴۰ نمونه از هر بحر.
+
+| تنظیم | واحد | n | دقت (CI ۹۵٪) | میانگین بحرها | خط پایه (اکثریت) |
+|---|---|---|---|---|---|
+| فقط قاعده | بیت | 866 | 0.858 [0.833, 0.879] | 0.856 | 0.046 |
+| فقط قاعده | شعر (۳ بیت) | 490 | 0.918 [0.894, 0.941] | 0.949 | 0.082 |
+| قاعده + واژه‌نامه v2 | مصراع | 958 | 0.848 [0.824, 0.868] | 0.847 | 0.042 |
+| **قاعده + واژه‌نامه v2** | **بیت** | 866 | **0.920** [0.901, 0.938] | 0.925 | 0.046 |
+| **قاعده + واژه‌نامه v2** | **شعر (۳ بیت)** | 490 | **0.976** [0.961, 0.988] | **0.982** | 0.082 |
+
+- **واژه‌نامه‌ی v2:** ۸۵۱۴ واژه، خودکار از ۲۲٬۳۸۷ مصراعِ قابل‌استفاده (۴۵ هزار نمونه، حداکثر ۲۵۰۰ از هر بحر، دو دور EM).
+- **اطمینان:** ۸۸٪ بیت‌ها «اطمینان بالا» می‌گیرند و از آن‌ها ۹۶٪ درست است؛ در حالت شعر، ۹۹٪ موارد «بالا» با ۹۸٪ درستی.
+- **به تفکیک شاعر (شعر ۳ بیتی):** عراقی، جامی، خواجو، رهی، سنایی و وحشی ۱۰۰٪؛ هاتف ۹۸٪، عطار ۹۷٪، شهریار ۹۶٪، انوری ۹۵٪، فروغی ۹۴٪.
+- **پیام محصولی:** از کاربر بخواه «چند بیت» بفرستد — خطا از ۸٪ (یک بیت) به ۲٫۴٪ (سه بیت) می‌رسد.
+
+### آزمون قبلی (نسخه‌ی ۱): شعرهای کنارگذاشته‌ی همان ۷ شاعر
 شعرهای ارزیابی (۲۰٪ شعرها، جدا بر اساس شعر) هرگز در یادگیری واژه‌نامه دیده نشده‌اند. نمونه‌گیری لایه‌ای بر اساس بحر
-(وگرنه شاهنامه نصف نمونه می‌شد). اجرا: `python scripts/eval_aruz.py [--couplets] [--lexicon ...]`.
+(وگرنه شاهنامه نصف نمونه می‌شد). اجرا: `python scripts/eval_aruz.py [--couplets | --poem-couplets 3] [--lexicon ...]`.
 
 | تنظیم | واحد | n | دقت (CI ۹۵٪) | میانگین بحرها | خط پایه (اکثریت) |
 |---|---|---|---|---|---|
@@ -73,10 +92,13 @@
 uv run python -m myllm.aruz.ganjoor download --cat /hafez/ghazal --max-poems 500
 uv run python -m myllm.aruz.ganjoor download --cat /saadi/divan/ghazals --max-poems 700
 uv run python -m myllm.aruz.ganjoor download --cat /ferdousi/shahname --max-poems 300
-# واژه‌نامه (چند ده دقیقه روی CPU)
-uv run python -m myllm.aruz.lexicon learn --max-hemistichs 40000 --out data/processed/aruz_lexicon.json
-# ارزیابی
-uv run python scripts/eval_aruz.py --couplets --lexicon data/processed/aruz_lexicon.json
+uv run python -m myllm.aruz.ganjoor download --cat /moulavi/shams/ghazalsh --max-poems 400
+# (برای نسخه‌ی v2 این‌ها هم: /moulavi/masnavi/daftar1، /nezami/5ganj، /khayyam/robaee، /saadi/boostan، /parvin/divanp، /moulavi/shams/robaeesh)
+# واژه‌نامه (حدود ۱٫۵ ساعت روی CPU؛ تنظیمات نسخه‌ی v2)
+uv run python -m myllm.aruz.lexicon learn --max-hemistichs 45000 --per-meter-cap 2500 --iterations 2 --out data/processed/aruz_lexicon.json
+# ارزیابی روی شاعران تازه
+uv run python -m myllm.aruz.ganjoor download --cat /attar --max-poems 80 --out data/raw/ganjoor_newpoets   # و بقیه‌ی ۱۲ شاعر
+uv run python scripts/eval_aruz.py --root data/raw/ganjoor_newpoets --holdout 1.0 --poem-couplets 3 --lexicon data/processed/aruz_lexicon.json
 # تست دستی
 uv run python -m myllm.aruz.scan "بشنو این نی چون شکایت می‌کند" "از جدایی‌ها حکایت می‌کند" --lexicon data/processed/aruz_lexicon.json
 uv run python -m myllm.aruz.bot --repl
