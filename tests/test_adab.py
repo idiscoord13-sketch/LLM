@@ -228,3 +228,54 @@ def test_exam_versions_share_questions_and_keys_match():
     assert doc.count("پاسخ‌نامه") == 2 and "۳۰ دقیقه" in doc
     with pytest.raises(ValueError):  # the history bank has no metre questions
         build_exam(bank, "meter:3")
+
+
+# --- LLM device tagger: data, parsing, scoring --------------------------------------------------------
+def _poem(tmp_path):
+    import json
+
+    poem = {"FullUrl": "/hafez/ghazal/sh999", "Verses": [
+        {"CoupletIndex": 0, "Position": "Right", "Text": "به بوی نافه‌ای کاخر صبا زان طره بگشاید"},
+        {"CoupletIndex": 0, "Position": "Left", "Text": "ز تاب جعد مشکینش چه خون افتاد در دل‌ها"}],
+        "LiteraryTags": [
+            {"CoupletIndex": 0, "DeviceId": 2, "Origin": "AcademicCorpus", "Parts": [
+                {"SlotId": 5, "Misra": 1, "WordStart": 3, "WordEnd": 3}, {"SlotId": 6, "Misra": 0, "ConceptId": 2}]},
+            {"CoupletIndex": 0, "DeviceId": 3, "Origin": "AcademicCorpus", "Parts": [
+                {"SlotId": 7, "Misra": 0, "Text": "خون در دل افتادن"}, {"SlotId": 8, "Misra": 0, "Text": "رنج بردن"}]},
+            {"CoupletIndex": 0, "DeviceId": 1, "Origin": "Editor", "Parts": []}]}
+    d = tmp_path / "hafez"
+    d.mkdir()
+    (d / "sh999.json").write_text(json.dumps(poem, ensure_ascii=False), encoding="utf-8")
+    return d
+
+
+def test_tagger_examples_from_academic_tags(tmp_path):
+    from myllm.adab.tagger import examples, split_of
+
+    rows = examples(_poem(tmp_path), {2: "گیسوی معشوق"})
+    assert len(rows) == 1
+    target = rows[0]["messages"][-1]["content"].splitlines()
+    assert target == ["استعاره: «نافه‌ای» برای «گیسوی معشوق»", "کنایه: «خون در دل افتادن» یعنی «رنج بردن»"]
+    assert rows[0]["split"] == split_of("/hafez/ghazal/sh999") and rows[0]["license"].startswith("MIT")
+
+
+def test_tagger_parse_and_score():
+    from myllm.adab.tagger import parse, score
+
+    gold = ["استعاره: «نافه‌ای» برای «گیسو»\nکنایه: «خون در دل افتادن» یعنی «رنج»"]
+    got = parse("- کنایه: «خون در دل افتاد»\nیک سطر بی‌ربط\nتشبیه: «لب» به «لعل»")
+    assert [d for d, _ in got] == ["کنایه", "تشبیه"]
+    perfect = score(gold, gold)
+    assert perfect["device_micro"]["f1"] == 1.0 and perfect["evidence"]["f1"] == 1.0
+    partial = score(gold, ["کنایه: «خون در دل افتاد»\nتشبیه: «لب» به «لعل»"])
+    assert partial["device_micro"]["precision"] == 0.5 and partial["device_micro"]["recall"] == 0.5
+    assert partial["evidence"]["recall"] == 0.5  # «خون در دل افتاد» matches the gold کنایه evidence
+    wrong_evidence = score(gold, ["استعاره: «صبا»"])
+    assert wrong_evidence["device_micro"]["precision"] == 1.0 and wrong_evidence["evidence"]["precision"] == 0.0
+
+
+def test_tagger_rules_baseline():
+    from myllm.adab.tagger import parse, rules_prediction
+
+    pred = parse(rules_prediction(["هر آن که کنج قناعت به گنج دنیا داد", "فروخت یوسف مصری به کمترین ثمنی"]))
+    assert ("جناس", {"کنج", "گنج"}) in pred

@@ -1,0 +1,26 @@
+# «آرایه‌یار» — LLM tagger for semantic devices (تشبیه، استعاره، کنایه، مجاز، ایهام، جناس). Recipe only;
+# hardware comes from the profile (local_4060 = Qwen3-4B-Instruct QLoRA on 8 GB).
+#   data:  python -m myllm.adab.tagger build          (MIT-licensed academic tags, split by poem)
+#   smoke: python -m myllm.train.sft --config configs/adab_tagger.yaml --profile cpu_smoke --smoke
+#   train: python -m myllm.train.sft --config configs/adab_tagger.yaml            (4060: ~1,600 couplets × 3 epochs)
+#   eval:  python -m myllm.adab.tagger eval --split dev --model Qwen/Qwen3-4B-Instruct-2507 --adapter out/adab_tagger
+#          (test split once, at the end; baseline: python -m myllm.adab.tagger eval --split test --rules)
+profile: local_4060
+seed: 42
+output_dir: out/adab_tagger
+data:
+  train_files: [data/processed/adab_tagger/train.jsonl]
+chat_template_kwargs: {enable_thinking: false}
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+train:
+  epochs: 3                    # small data: watch dev device-F1 per epoch, not the train loss
+  learning_rate: 2.0e-4
+  lr_scheduler: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  logging_steps: 10
+  save_strategy: epoch
+  report_to: none
